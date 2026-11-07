@@ -1,6 +1,6 @@
 // Lets the planner open without internet once it has been loaded.
 // Network first, so updates show up as soon as you're online.
-const CACHE = 'pen-planner-v1';
+const CACHE = 'pen-planner-v2';
 const FILES = ['./', 'index.html', 'pen.css', 'pen.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -20,10 +20,12 @@
     <nav class="tabs">
       <a href="#day" data-nav="day">Daily</a>
       <a href="#notes" data-nav="notes">Study notes</a>
+      <a href="#routines" data-nav="routines">Routines</a>
     </nav>
     <details class="menu">
       <summary aria-label="More">•••</summary>
       <div class="menu-pop">
+        <button id="calSetupBtn">Google Calendar connection</button>
         <button id="exportBtn">Download a backup</button>
         <label>Restore a backup<input type="file" id="importInput" accept="application/json,.json" hidden /></label>
         <a href="classic.html">Classic planner (typed)</a>
@@ -52,6 +54,11 @@
         </div>
       </div>
 
+      <div class="duo">
+        <section class="card" id="morningCard"></section>
+        <section class="card" id="calCard"></section>
+      </div>
+
       <section class="card">
         <div class="card-head">
           <h2><span class="dot task"></span>Tasks</h2>
@@ -69,6 +76,14 @@
         </div>
         <div id="dayNotes" class="note-grid"></div>
       </section>
+
+      <section class="card" id="nightCard"></section>
+    </section>
+
+    <!-- ROUTINE TRACKER -->
+    <section id="view-routines" class="view">
+      <div class="libhead"><h1>Routines</h1><span class="muted small">Last 30 days · tap a square to change it</span></div>
+      <div id="routineTrack"></div>
     </section>
 
     <!-- ONE STUDY NOTE -->
@@ -125,6 +140,48 @@
       <svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5V10a1.5 1.5 0 0 1 3 0v2"/><path d="M14 11a1.5 1.5 0 0 1 3 0v1.5"/><path d="M17 12a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L5 15.5a1.5 1.5 0 0 1 2.3-2L8 14.5"/></svg>
     </button>
   </div>
+
+  <!-- EDIT ROUTINE -->
+  <dialog id="routineDlg">
+    <form method="dialog" class="dlg">
+      <h2 id="routineDlgTitle">Morning routine</h2>
+      <p class="muted small">The steps you want to do every day, in order.</p>
+      <ol id="routineSteps" class="steps"></ol>
+      <button type="button" class="mini" id="addStep">+ Add a step</button>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="routineCancel">Cancel</button>
+        <button type="button" class="mini primary" id="routineSave">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- CALENDAR SETUP -->
+  <dialog id="calDlg">
+    <form method="dialog" class="dlg">
+      <h2>Connect Google Calendar</h2>
+      <p class="small">The planner shows each day's events from your Google Calendar. You set it up once. It's easier on a computer, and then you paste the link here on your iPad.</p>
+      <ol class="setup small">
+        <li><button type="button" class="mini" id="copyScript">Copy the script</button> <span id="copyMsg" class="muted"></span></li>
+        <li>Go to <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a> and sign in. A new project opens. Delete the text that's there and paste the script.</li>
+        <li>Click <b>Deploy → New deployment</b>. Click the gear next to "Select type" and choose <b>Web app</b>.</li>
+        <li>Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>, then click <b>Deploy</b>.</li>
+        <li>Click <b>Authorize access</b> and choose your account. Google warns that the app isn't verified, because you made it yourself: click <b>Advanced → Go to … (unsafe)</b> → <b>Allow</b>.</li>
+        <li>Copy the <b>Web app URL</b> and paste it below.</li>
+      </ol>
+      <textarea id="calScript" readonly rows="5" aria-label="Script"></textarea>
+      <label class="small"><b>Web app URL</b>
+        <input id="calUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" />
+      </label>
+      <p class="muted small">Keep this link private: anyone who has it can see your calendar events. It only reads your calendar; it can't change anything.</p>
+      <p id="calMsg" class="small"></p>
+      <div class="dlg-actions">
+        <button type="button" class="mini danger" id="calDisconnect">Disconnect</button>
+        <span style="flex:1"></span>
+        <button type="button" class="mini" id="calClose">Close</button>
+        <button type="button" class="mini primary" id="calConnect">Connect</button>
+      </div>
+    </form>
+  </dialog>
 
   <div id="toast" role="status"></div>
   <script src="pen.js"></script>

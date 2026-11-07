@@ -419,6 +419,9 @@
     $('#dayDate').textContent = fmt(date, { month: 'long', day: 'numeric', year: 'numeric' });
     $('#dayRel').textContent = date === t ? 'Today' : date === addDays(t, -1) ? 'Yesterday' : date === addDays(t, 1) ? 'Tomorrow' : '';
     $('#datePick').value = date;
+    renderRoutineCard('morning');
+    renderRoutineCard('night');
+    renderCalendar();
     renderTasks();
     renderDayNotes();
   }
@@ -571,6 +574,268 @@
   }
   $('#libNew').addEventListener('click', () => newNote(today()));
 
+  // ---------- settings kept with your data ----------
+  const Config = {
+    get(id, def) { const it = Store.items.get('cfg-' + id); return it ? it.value : def; },
+    set(id, value) { Store.save({ id: 'cfg-' + id, kind: 'config', value }); },
+  };
+
+  // ---------- morning & night routines ----------
+  const DEFAULT_ROUTINES = {
+    morning: [
+      { id: 'm1', label: 'Drink a glass of water' }, { id: 'm2', label: 'Make the bed' },
+      { id: 'm3', label: 'Stretch for 5 minutes' }, { id: 'm4', label: "Look over today's tasks" },
+    ],
+    night: [
+      { id: 'n1', label: 'Tidy up my desk' }, { id: 'n2', label: "Get tomorrow's things ready" },
+      { id: 'n3', label: 'Review my study notes' }, { id: 'n4', label: 'Screens off and read' },
+    ],
+  };
+  const RT = {
+    morning: { title: 'Morning routine', icon: '☀︎', cls: 'sun' },
+    night: { title: 'Night routine', icon: '☾', cls: 'moon' },
+  };
+  const routines = () => Config.get('routines', DEFAULT_ROUTINES);
+  const logOf = date => Store.items.get('rt-' + date);
+  const isDone = (date, id) => { const l = logOf(date); return !!(l && l.done[id]); };
+  const doneCount = (which, date) => routines()[which].filter(i => isDone(date, i.id)).length;
+  const fullDay = (which, date) => { const it = routines()[which]; return it.length > 0 && doneCount(which, date) === it.length; };
+
+  function toggleStep(date, id) {
+    const l = logOf(date) || { id: 'rt-' + date, kind: 'routine-day', date, done: {} };
+    if (l.done[id]) delete l.done[id]; else l.done[id] = true;
+    Store.save(l);
+  }
+
+  function streak(which) {
+    let d = today();
+    if (!fullDay(which, d)) d = addDays(d, -1);
+    let n = 0;
+    while (n < 3660 && fullDay(which, d)) { n++; d = addDays(d, -1); }
+    return n;
+  }
+  const streakText = n => n ? `🔥 ${n}-day streak` : 'No streak yet';
+
+  function renderRoutineCard(which) {
+    const card = $('#' + which + 'Card');
+    const items = routines()[which], date = state.date, info = RT[which];
+    const done = doneCount(which, date);
+    const week = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = addDays(date, -i), c = doneCount(which, d);
+      week.push(el('a', { href: '#day/' + d, class: d === date ? 'cur' : '', title: fmt(d, { weekday: 'long', month: 'short', day: 'numeric' }) },
+        el('span', { class: 'pip' + (items.length && c === items.length ? ' full' : c ? ' part' : '') }),
+        fmt(d, { weekday: 'narrow' })));
+    }
+    const s = streak(which);
+    card.replaceChildren(
+      el('div', { class: 'card-head' },
+        el('h2', {}, el('span', { class: 'ico ' + info.cls }, info.icon), info.title),
+        el('span', { class: 'muted' }, items.length ? `${done} of ${items.length}` : '')),
+      items.length
+        ? el('ul', { class: 'routine' }, items.map(i => el('li', {},
+          el('button', {
+            class: 'rcheck' + (isDone(date, i.id) ? ' on' : ''), 'aria-pressed': String(isDone(date, i.id)),
+            onclick: () => { toggleStep(date, i.id); renderRoutineCard(which); if (fullDay(which, date)) toast(`${info.title} done! ${streakText(streak(which))}`); },
+          }, el('span', { class: 'box' }), el('span', { class: 'label' }, i.label)))))
+        : el('p', { class: 'muted small' }, 'No steps yet. Tap Edit to add some.'),
+      el('div', { class: 'routine-foot' },
+        el('div', { class: 'week' }, week),
+        el('span', { class: 'streak' + (s ? ' hot' : '') }, streakText(s)),
+        el('button', { class: 'mini', onclick: () => editRoutine(which) }, 'Edit')));
+  }
+
+  let editing = null;
+  function editRoutine(which) {
+    editing = { which, steps: routines()[which].map(s => ({ ...s })) };
+    $('#routineDlgTitle').textContent = RT[which].title;
+    drawSteps();
+    $('#routineDlg').showModal();
+  }
+  function drawSteps() {
+    const list = $('#routineSteps');
+    list.replaceChildren(...editing.steps.map((s, i) => el('li', {}, el('div', { class: 'row' },
+      el('input', { value: s.label, placeholder: 'e.g. Drink water', 'aria-label': 'Step ' + (i + 1), oninput: e => { s.label = e.target.value; } }),
+      el('button', { type: 'button', class: 'icon-btn sm', title: 'Move up', 'aria-label': 'Move up', disabled: i === 0,
+        onclick: () => { editing.steps.splice(i - 1, 0, editing.steps.splice(i, 1)[0]); drawSteps(); } }, '↑'),
+      el('button', { type: 'button', class: 'icon-btn sm', title: 'Remove', 'aria-label': 'Remove step',
+        onclick: () => { editing.steps.splice(i, 1); drawSteps(); } }, '×')))));
+  }
+  $('#addStep').addEventListener('click', () => {
+    editing.steps.push({ id: uid(), label: '' });
+    drawSteps();
+    const inputs = $('#routineSteps').querySelectorAll('input');
+    inputs[inputs.length - 1].focus();
+  });
+  $('#routineCancel').addEventListener('click', () => $('#routineDlg').close());
+  $('#routineSave').addEventListener('click', () => {
+    const all = { ...routines() };
+    all[editing.which] = editing.steps.map(s => ({ id: s.id, label: s.label.trim() })).filter(s => s.label);
+    Config.set('routines', all);
+    $('#routineDlg').close();
+    route();
+  });
+
+  function showRoutines() {
+    unmountAll();
+    setView('routines');
+    const N = 30, t = today();
+    const dates = Array.from({ length: N }, (_, i) => addDays(t, i - N + 1));
+    const cols = `minmax(110px, 180px) repeat(${N}, minmax(14px, 1fr))`;
+    const box = $('#routineTrack');
+    box.replaceChildren(...['morning', 'night'].map(which => {
+      const items = routines()[which], info = RT[which];
+      const fullLast = n => dates.slice(-n).filter(d => fullDay(which, d)).length;
+      const pct = items.length ? Math.round(100 * dates.reduce((a, d) => a + doneCount(which, d), 0) / (items.length * N)) : 0;
+      const grid = el('div', { class: 'track-grid', style: `grid-template-columns:${cols}` });
+      grid.append(el('span'), ...dates.map(d => el('span', { class: 'dh' + (d === t ? ' today' : '') },
+        fmt(d, { weekday: 'narrow' }), el('br'), String(parse(d).getDate()))));
+      for (const it of items) {
+        grid.append(el('span', { class: 'lbl', title: it.label }, it.label));
+        for (const d of dates) {
+          grid.append(el('button', {
+            class: 'cell' + (isDone(d, it.id) ? ' on' : ''), title: `${it.label} · ${fmt(d, { month: 'short', day: 'numeric' })}`,
+            'aria-label': `${it.label}, ${fmt(d, { month: 'long', day: 'numeric' })}, ${isDone(d, it.id) ? 'done' : 'not done'}`,
+            onclick: () => { toggleStep(d, it.id); showRoutines(); },
+          }));
+        }
+      }
+      if (items.length) {
+        grid.append(el('span', { class: 'lbl all' }, 'Whole routine'));
+        for (const d of dates) {
+          const c = doneCount(which, d);
+          grid.append(el('span', { class: 'cell' + (c === items.length ? ' on' : c ? ' part' : '') }));
+        }
+      }
+      return el('section', { class: 'card track-card ' + which },
+        el('div', { class: 'card-head' },
+          el('h2', {}, el('span', { class: 'ico ' + info.cls }, info.icon), info.title),
+          el('button', { class: 'mini', onclick: () => editRoutine(which) }, 'Edit steps')),
+        el('div', { class: 'stats' },
+          el('span', {}, el('b', {}, String(streak(which))), 'day streak'),
+          el('span', {}, el('b', {}, `${fullLast(7)}/7`), 'full days this week'),
+          el('span', {}, el('b', {}, `${fullLast(30)}/30`), 'full days this month'),
+          el('span', {}, el('b', {}, pct + '%'), 'of steps done')),
+        items.length ? el('div', { class: 'track' }, grid) : el('p', { class: 'muted small' }, 'No steps yet.'));
+    }));
+  }
+
+  // ---------- Google Calendar (through the user's own Apps Script web app) ----------
+  const CAL_SCRIPT = `// Pen Planner: sends your Google Calendar events to your planner.
+// It only reads your calendars. It never changes them.
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  var from = new Date(Number(p.from)), to = new Date(Number(p.to));
+  if (isNaN(from) || isNaN(to) || to - from > 40 * 864e5) return send({ error: 'Bad dates' });
+  var events = [];
+  CalendarApp.getAllCalendars().forEach(function (cal) {
+    if (cal.isHidden() || !cal.isSelected()) return;
+    cal.getEvents(from, to).forEach(function (ev) {
+      events.push({
+        title: ev.getTitle(), start: ev.getStartTime().getTime(), end: ev.getEndTime().getTime(),
+        allDay: ev.isAllDayEvent(), location: ev.getLocation(), calendar: cal.getName(), color: cal.getColor()
+      });
+    });
+  });
+  events.sort(function (a, b) { return (b.allDay - a.allDay) || (a.start - b.start); });
+  return send({ events: events });
+}
+function send(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+`;
+  const Cal = {
+    cache: new Map(),
+    url() { return Config.get('calendarUrl', ''); },
+    async load(date, url = this.url(), force = false) {
+      if (!force && this.cache.has(date)) return this.cache.get(date);
+      const from = parse(date).getTime(), to = parse(addDays(date, 1)).getTime();
+      let res;
+      try { res = await fetch(`${url}${url.includes('?') ? '&' : '?'}from=${from}&to=${to}`); }
+      catch { throw new Error("Couldn't reach Google. Are you online?"); }
+      if (!res.ok) throw new Error(`Google answered with an error (${res.status}).`);
+      let data;
+      try { data = await res.json(); }
+      catch { throw new Error('Google sent a sign-in page instead of your events. In the deployment, set "Who has access" to "Anyone".'); }
+      if (data.error || !Array.isArray(data.events)) throw new Error(data.error || 'Unexpected reply from the script.');
+      this.cache.set(date, data.events);
+      return data.events;
+    },
+  };
+  const timeOf = ms => new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+  async function renderCalendar(force) {
+    const card = $('#calCard'), date = state.date, url = Cal.url();
+    const head = el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:var(--accent)' }), 'Calendar'));
+    if (!url) {
+      card.replaceChildren(head,
+        el('p', { class: 'muted small' }, "See this day's Google Calendar events here, next to your tasks."),
+        el('button', { class: 'mini primary', onclick: openCalSetup }, 'Connect Google Calendar'));
+      return;
+    }
+    head.append(el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => renderCalendar(true) }, '↻'));
+    const body = el('div', {}, el('p', { class: 'muted small' }, 'Loading your calendar…'));
+    card.replaceChildren(head, body);
+    try {
+      const events = await Cal.load(date, url, force);
+      if (state.date !== date) return;
+      if (!events.length) { body.replaceChildren(el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
+      const now = Date.now();
+      body.replaceChildren(el('ul', { class: 'events' }, events.map(ev => {
+        const color = /^#[0-9a-f]{3,8}$/i.test(ev.color || '') ? ev.color : null;
+        return el('li', { class: !ev.allDay && ev.end < now ? 'past' : '' },
+          el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
+          el('span', { class: 'when' }, ev.allDay ? 'All day' : timeOf(ev.start)),
+          el('span', { class: 'what' }, el('strong', {}, ev.title || '(No title)'),
+            el('span', {}, [ev.allDay ? null : `until ${timeOf(ev.end)}`, ev.location || null].filter(Boolean).join(' · '))));
+      })));
+    } catch (err) {
+      if (state.date !== date) return;
+      body.replaceChildren(el('p', { class: 'small', style: 'color:var(--danger)' }, err.message),
+        el('button', { class: 'mini', onclick: openCalSetup }, 'Check connection'));
+    }
+  }
+
+  function openCalSetup() {
+    $('.menu').open = false;
+    $('#calScript').value = CAL_SCRIPT;
+    $('#calUrl').value = Cal.url();
+    $('#calMsg').textContent = '';
+    $('#calMsg').className = 'small';
+    $('#calDisconnect').hidden = !Cal.url();
+    $('#calDlg').showModal();
+  }
+  $('#calSetupBtn').addEventListener('click', openCalSetup);
+  $('#calClose').addEventListener('click', () => $('#calDlg').close());
+  $('#copyScript').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(CAL_SCRIPT); $('#copyMsg').textContent = 'Copied!'; }
+    catch { const t = $('#calScript'); t.focus(); t.select(); $('#copyMsg').textContent = 'Selected: now copy it.'; }
+  });
+  $('#calConnect').addEventListener('click', async () => {
+    const url = $('#calUrl').value.trim(), msg = $('#calMsg');
+    if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) {
+      msg.className = 'small err'; msg.textContent = 'Paste the Web app URL. It starts with https://script.google.com/macros/s/';
+      return;
+    }
+    msg.className = 'small'; msg.textContent = 'Checking…';
+    try {
+      const events = await Cal.load(today(), url, true);
+      Config.set('calendarUrl', url);
+      Cal.cache.clear();
+      msg.className = 'small ok';
+      msg.textContent = `Connected! ${events.length} event${events.length === 1 ? '' : 's'} on your calendar today.`;
+      $('#calDisconnect').hidden = false;
+      if (document.body.classList.contains('view-day')) renderCalendar();
+    } catch (err) { msg.className = 'small err'; msg.textContent = err.message; }
+  });
+  $('#calDisconnect').addEventListener('click', () => {
+    if (!confirm('Disconnect Google Calendar from the planner?')) return;
+    Store.remove('cfg-calendarUrl');
+    Cal.cache.clear();
+    $('#calDlg').close();
+    if (document.body.classList.contains('view-day')) renderCalendar();
+  });
+
   // ---------- routing ----------
   function route() {
     const [view, arg] = location.hash.slice(1).split('/');
@@ -579,6 +844,7 @@
     if (view === 'note' && Store.items.has(arg)) { cleanup(arg); showNote(Store.items.get(arg)); return; }
     cleanup();
     if (view === 'notes') showLibrary();
+    else if (view === 'routines') showRoutines();
     else showDay(isDate(arg) ? arg : today());
   }
   addEventListener('hashchange', route);
@@ -604,7 +870,11 @@
       if (data.app !== 'pen-planner' || !Array.isArray(data.items)) throw new Error('This is not a Pen Planner backup file.');
       let n = 0;
       for (const it of data.items) {
-        if (!it || !it.id || !Array.isArray(it.strokes) || !isDate(it.date) || !['task', 'note'].includes(it.kind)) continue;
+        const ok = it && typeof it.id === 'string' && (
+          (['task', 'note'].includes(it.kind) && Array.isArray(it.strokes) && isDate(it.date)) ||
+          (it.kind === 'routine-day' && isDate(it.date) && it.done && typeof it.done === 'object') ||
+          (it.kind === 'config' && it.id.startsWith('cfg-')));
+        if (!ok) continue;
         Store.items.set(it.id, it); Store.flush(it.id); n++;
       }
       toast(`Restored ${n} item${n === 1 ? '' : 's'}.`);
