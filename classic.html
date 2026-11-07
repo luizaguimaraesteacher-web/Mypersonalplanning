@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Classic Planner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">📒 Classic Planner <a href="index.html" style="font-size:.8em;margin-left:.6em">✎ Pen planner</a></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="day">Day</button>
+      <button class="tab" data-view="students">Students</button>
+      <button class="tab" data-view="study">Study Plans</button>
+    </nav>
+    <div class="topbar-actions">
+      <button class="btn ghost small" id="exportBtn" title="Download a backup of all your data">Export</button>
+      <label class="btn ghost small" title="Restore from a backup file">
+        Import<input type="file" id="importInput" accept="application/json" hidden />
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <!-- DAY VIEW -->
+    <section id="view-day" class="view active">
+      <div class="day-header">
+        <button class="btn ghost" id="prevDay" aria-label="Previous day">‹</button>
+        <div class="day-title">
+          <h1 id="dayLabel"></h1>
+          <input type="date" id="datePicker" />
+        </div>
+        <button class="btn ghost" id="nextDay" aria-label="Next day">›</button>
+        <button class="btn ghost small" id="todayBtn">Today</button>
+      </div>
+
+      <div class="day-layout">
+        <div class="day-main">
+          <div class="add-row">
+            <button class="btn primary" data-new="lesson">+ Lesson</button>
+            <button class="btn study" data-new="study">+ Study session</button>
+            <button class="btn other" data-new="other">+ Other event</button>
+          </div>
+          <ol id="eventList" class="event-list"></ol>
+          <div class="card">
+            <h3>Notes for the day</h3>
+            <textarea id="dayNotes" rows="4" placeholder="Reflections, reminders, to-dos for today…"></textarea>
+          </div>
+        </div>
+
+        <aside class="day-side">
+          <div class="card">
+            <h3>Study progress</h3>
+            <div id="sideStudy"></div>
+          </div>
+          <div class="card">
+            <h3>Upcoming lessons</h3>
+            <ul id="sideUpcoming" class="mini-list"></ul>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- STUDENTS VIEW -->
+    <section id="view-students" class="view">
+      <div class="split">
+        <div class="card list-pane">
+          <div class="pane-head">
+            <h2>Students</h2>
+            <button class="btn primary small" id="newStudentBtn">+ Add</button>
+          </div>
+          <ul id="studentList" class="select-list"></ul>
+        </div>
+        <div class="card detail-pane" id="studentDetail"></div>
+      </div>
+    </section>
+
+    <!-- STUDY VIEW -->
+    <section id="view-study" class="view">
+      <div class="split">
+        <div class="card list-pane">
+          <div class="pane-head">
+            <h2>Study plans</h2>
+            <button class="btn study small" id="newPlanBtn">+ Add</button>
+          </div>
+          <ul id="planList" class="select-list"></ul>
+        </div>
+        <div class="card detail-pane" id="planDetail"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- EVENT MODAL -->
+  <dialog id="eventDialog">
+    <form id="eventForm" method="dialog">
+      <div class="modal-head">
+        <h2 id="eventDialogTitle">Event</h2>
+        <button type="button" class="btn ghost small" data-close>✕</button>
+      </div>
+
+      <div class="grid3">
+        <label>Type
+          <select name="type">
+            <option value="lesson">Lesson</option>
+            <option value="study">Study session</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>Date <input type="date" name="date" required /></label>
+        <div class="grid2">
+          <label>Start <input type="time" name="start" /></label>
+          <label>End <input type="time" name="end" /></label>
+        </div>
+      </div>
+
+      <label>Title <input type="text" name="title" placeholder="Optional — filled automatically for lessons" /></label>
+
+      <!-- Lesson fields -->
+      <fieldset data-for="lesson">
+        <legend>Lesson</legend>
+        <label>Student
+          <select name="studentId"></select>
+        </label>
+        <div id="lastClassBox" class="last-class"></div>
+        <label>Review from last class / homework check
+          <textarea name="review" rows="2"></textarea>
+        </label>
+        <label>Objectives for this lesson
+          <textarea name="objectives" rows="2"></textarea>
+        </label>
+        <label>Activities / lesson plan
+          <textarea name="activities" rows="3"></textarea>
+        </label>
+        <label>Materials
+          <input type="text" name="materials" placeholder="Book p. 42, slides, worksheet…" />
+        </label>
+        <div class="grid2">
+          <label>Homework to assign
+            <textarea name="homework" rows="2"></textarea>
+          </label>
+          <label>Next steps (for next class)
+            <textarea name="nextSteps" rows="2"></textarea>
+          </label>
+        </div>
+      </fieldset>
+
+      <!-- Study fields -->
+      <fieldset data-for="study">
+        <legend>Study session</legend>
+        <label>Study plan
+          <select name="planId"></select>
+        </label>
+        <div id="planTopicsBox"></div>
+        <label>Session goal
+          <textarea name="goal" rows="2" placeholder="What do I want to achieve in this session?"></textarea>
+        </label>
+      </fieldset>
+
+      <label>Notes
+        <textarea name="notes" rows="4" placeholder="How did it go? Anything to remember?"></textarea>
+      </label>
+      <label class="check"><input type="checkbox" name="done" /> Completed</label>
+
+      <div class="modal-foot">
+        <button type="button" class="btn danger ghost" id="deleteEventBtn">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- STUDENT MODAL -->
+  <dialog id="studentDialog">
+    <form id="studentForm" method="dialog">
+      <div class="modal-head">
+        <h2>Student</h2>
+        <button type="button" class="btn ghost small" data-close>✕</button>
+      </div>
+      <label>Name <input type="text" name="name" required /></label>
+      <label>Level / course <input type="text" name="level" placeholder="e.g. B1 English, 5th grade" /></label>
+      <label>Goals <textarea name="goals" rows="2"></textarea></label>
+      <label>General notes <textarea name="notes" rows="3"></textarea></label>
+      <div class="modal-foot">
+        <button type="button" class="btn danger ghost" id="deleteStudentBtn">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- PLAN MODAL -->
+  <dialog id="planDialog">
+    <form id="planForm" method="dialog">
+      <div class="modal-head">
+        <h2>Study plan</h2>
+        <button type="button" class="btn ghost small" data-close>✕</button>
+      </div>
+      <label>Title <input type="text" name="title" required placeholder="e.g. Teaching certification" /></label>
+      <label>Goal <textarea name="goal" rows="2"></textarea></label>
+      <label>Target date <input type="date" name="targetDate" /></label>
+      <label>Topics (one per line)
+        <textarea name="topics" rows="6" placeholder="Unit 1 – Phonetics&#10;Unit 2 – Grammar&#10;…"></textarea>
+      </label>
+      <div class="modal-foot">
+        <button type="button" class="btn danger ghost" id="deletePlanBtn">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn study">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,23 +1,24 @@
-# My Daily Planner
+# Pen Planner
 
-A simple daily planner website for study plans, student lessons and event notes. It runs entirely in the browser: no install, no account, no server.
+A daily planner website you write in with Apple Pencil: one page per day with your **tasks** and your **study notes**, all handwritten. It runs entirely in the browser: no install, no account, no server.
 
 ## How to use
 
-Open `index.html` in your browser, or publish the repo with GitHub Pages (Settings → Pages → deploy from branch).
+Open `index.html`, or publish the repo with GitHub Pages (Settings → Pages → deploy from branch) and open the link in Safari on your iPad.
 
-- **Day**: see one day at a time and add **lessons**, **study sessions** or **other events**. Every event has its own **notes**, and each day has a "Notes for the day" box. Tick an event's checkbox to mark it done.
-- **Students**: add your students, then use **Plan next lesson**. When you plan a lesson, the planner shows that student's **last class** (objectives, homework, next steps, notes). Click **Build this lesson from last class** to pre-fill the homework check, review and new objectives from it. Each student also has their full lesson history.
-- **Study Plans**: make a plan with a list of topics and a target date, then schedule study sessions for it. When you complete a session, the topics you picked for it are ticked off and the progress bar updates.
+- **Tasks**: write on the empty line ("Write a new task…") and a new empty line appears underneath. Tap the circle to mark a task done. **→** moves it to tomorrow, **×** deletes it.
+- **Unfinished tasks follow you**: on today's page, anything not done from earlier days shows under "Still to do from earlier days". Tick it off there, or tap **Move to today**.
+- **Study notes**: tap **New study note** on any day. Type the subject (e.g. Biology), pick lined, grid, dotted or blank paper, and write. The page grows as you reach the bottom, or tap **+ More space**.
+- **All study notes**: the *Study notes* tab shows every note, newest first. Tap a subject to see only those notes.
+- **Pen tools** (bar at the bottom): pen, highlighter, eraser, 5 ink colours, 3 sizes, undo and redo. The Pencil writes and your finger scrolls; tap the hand button if you also want to write with a finger.
 
 ## Your data
 
-Everything is saved in this browser's local storage. Use **Export** to download a backup file regularly, and **Import** to restore it or move your data to another computer or browser.
+Everything is saved in the browser on your iPad. Safari can clear data from websites you haven't opened for a few weeks, so:
 
-## Apple Pencil planner (PDF)
+1. In Safari tap **Share → Add to Home Screen** and always open the planner from that icon. Apps on the Home Screen keep their data, and the planner works offline too.
+2. Every now and then use **••• → Download a backup**. **Restore a backup** brings it back on any device.
 
-`pencil-planner/Pencil-Planner-2027.pdf` is a 530-page hyperlinked planner for writing on an iPad with Apple Pencil. Open it on the iPad and import it into GoodNotes, Notability or Noteshelf as a PDF.
+## Classic planner
 
-- **Pages**: cover, index, year at a glance, yearly goals, 12 months, 53 weeks, a page for every day, 40 lesson plans, a student tracker, 10 study plans and 40 dot-grid notes pages.
-- **Links**: the month tabs on the right and the buttons at the top are on every page. Tap a date on a month or year page to open that day, a week number to open the week, and the headings at the top of a page to go back up. Write with the Pencil and tap links with your finger.
-- **Other years**: run `python3 pencil-planner/make_planner.py --year 2028` (add `--week-start sunday` if you like). It needs Python with `reportlab` (`pip install reportlab`).
+The earlier typed planner (lessons, students, study plans) is still at `classic.html`, with all its saved data, and is linked from the ••• menu.

@@ -2,217 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Daily Planner</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pen Planner</title>
+  <meta name="theme-color" content="#f6f4ef" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Pen Planner" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <link rel="icon" href="icon-180.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="pen.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">📒 My Daily Planner</div>
-    <nav class="tabs" role="tablist">
-      <button class="tab active" data-view="day">Day</button>
-      <button class="tab" data-view="students">Students</button>
-      <button class="tab" data-view="study">Study Plans</button>
+  <header class="top">
+    <a class="brand" href="#day">✎ Pen Planner</a>
+    <nav class="tabs">
+      <a href="#day" data-nav="day">Daily</a>
+      <a href="#notes" data-nav="notes">Study notes</a>
     </nav>
-    <div class="topbar-actions">
-      <button class="btn ghost small" id="exportBtn" title="Download a backup of all your data">Export</button>
-      <label class="btn ghost small" title="Restore from a backup file">
-        Import<input type="file" id="importInput" accept="application/json" hidden />
-      </label>
-    </div>
+    <details class="menu">
+      <summary aria-label="More">•••</summary>
+      <div class="menu-pop">
+        <button id="exportBtn">Download a backup</button>
+        <label>Restore a backup<input type="file" id="importInput" accept="application/json,.json" hidden /></label>
+        <a href="classic.html">Classic planner (typed)</a>
+      </div>
+    </details>
   </header>
 
+  <div id="installHint" class="hint" hidden>
+    <span><strong>Keep your notes safe:</strong> on iPad tap <b>Share</b> → <b>Add to Home Screen</b> and open the planner from there. Safari can clear data from websites you don't open for a while.</span>
+    <button class="mini" id="hintClose">Got it</button>
+  </div>
+
   <main>
-    <!-- DAY VIEW -->
-    <section id="view-day" class="view active">
-      <div class="day-header">
-        <button class="btn ghost" id="prevDay" aria-label="Previous day">‹</button>
-        <div class="day-title">
-          <h1 id="dayLabel"></h1>
-          <input type="date" id="datePicker" />
+    <!-- DAILY PAGE -->
+    <section id="view-day" class="view">
+      <div class="dayhead">
+        <button class="round" id="prevDay" aria-label="Previous day">‹</button>
+        <div class="daytitle">
+          <h1 id="dayName"></h1>
+          <p><span id="dayDate"></span> <span id="dayRel" class="chip"></span></p>
         </div>
-        <button class="btn ghost" id="nextDay" aria-label="Next day">›</button>
-        <button class="btn ghost small" id="todayBtn">Today</button>
+        <button class="round" id="nextDay" aria-label="Next day">›</button>
+        <div class="dayjump">
+          <button class="mini" id="todayBtn">Today</button>
+          <input type="date" id="datePick" aria-label="Go to date" />
+        </div>
       </div>
 
-      <div class="day-layout">
-        <div class="day-main">
-          <div class="add-row">
-            <button class="btn primary" data-new="lesson">+ Lesson</button>
-            <button class="btn study" data-new="study">+ Study session</button>
-            <button class="btn other" data-new="other">+ Other event</button>
-          </div>
-          <ol id="eventList" class="event-list"></ol>
-          <div class="card">
-            <h3>Notes for the day</h3>
-            <textarea id="dayNotes" rows="4" placeholder="Reflections, reminders, to-dos for today…"></textarea>
-          </div>
+      <section class="card">
+        <div class="card-head">
+          <h2><span class="dot task"></span>Tasks</h2>
+          <span id="taskCount" class="muted"></span>
         </div>
+        <div id="overdue"></div>
+        <ol id="taskList" class="tasks"></ol>
+        <p class="muted small">Write on the empty line to add a task. Tap the circle when it's done.</p>
+      </section>
 
-        <aside class="day-side">
-          <div class="card">
-            <h3>Study progress</h3>
-            <div id="sideStudy"></div>
-          </div>
-          <div class="card">
-            <h3>Upcoming lessons</h3>
-            <ul id="sideUpcoming" class="mini-list"></ul>
-          </div>
-        </aside>
-      </div>
+      <section class="card">
+        <div class="card-head">
+          <h2><span class="dot study"></span>Study notes</h2>
+          <a class="muted small" href="#notes">All notes ›</a>
+        </div>
+        <div id="dayNotes" class="note-grid"></div>
+      </section>
     </section>
 
-    <!-- STUDENTS VIEW -->
-    <section id="view-students" class="view">
-      <div class="split">
-        <div class="card list-pane">
-          <div class="pane-head">
-            <h2>Students</h2>
-            <button class="btn primary small" id="newStudentBtn">+ Add</button>
-          </div>
-          <ul id="studentList" class="select-list"></ul>
-        </div>
-        <div class="card detail-pane" id="studentDetail"></div>
+    <!-- ONE STUDY NOTE -->
+    <section id="view-note" class="view">
+      <div class="notehead">
+        <a class="mini" id="noteBack" href="#day">‹ Back</a>
+        <input id="noteSubject" list="subjectList" placeholder="Subject, e.g. Biology" autocomplete="off" />
+        <datalist id="subjectList"></datalist>
+        <input type="date" id="noteDate" aria-label="Date of this note" />
+        <select id="notePaper" aria-label="Paper">
+          <option value="lines">Lined</option>
+          <option value="grid">Grid</option>
+          <option value="dots">Dots</option>
+          <option value="blank">Blank</option>
+        </select>
+        <button class="mini danger" id="noteDelete">Delete</button>
       </div>
+      <div class="page"><div id="notePage"></div></div>
+      <button class="mini more-space" id="addSpace">+ More space</button>
     </section>
 
-    <!-- STUDY VIEW -->
-    <section id="view-study" class="view">
-      <div class="split">
-        <div class="card list-pane">
-          <div class="pane-head">
-            <h2>Study plans</h2>
-            <button class="btn study small" id="newPlanBtn">+ Add</button>
-          </div>
-          <ul id="planList" class="select-list"></ul>
-        </div>
-        <div class="card detail-pane" id="planDetail"></div>
+    <!-- ALL STUDY NOTES -->
+    <section id="view-notes" class="view">
+      <div class="libhead">
+        <h1>Study notes</h1>
+        <button class="mini primary" id="libNew">+ New note for today</button>
       </div>
+      <div id="subjectChips" class="chips"></div>
+      <div id="libGrid" class="note-grid lib"></div>
+      <p id="libEmpty" class="empty" hidden>No study notes yet. Open a day and tap <b>New study note</b>.</p>
     </section>
   </main>
 
-  <!-- EVENT MODAL -->
-  <dialog id="eventDialog">
-    <form id="eventForm" method="dialog">
-      <div class="modal-head">
-        <h2 id="eventDialogTitle">Event</h2>
-        <button type="button" class="btn ghost small" data-close>✕</button>
-      </div>
+  <!-- PEN TOOLBAR -->
+  <div id="toolbar" role="toolbar" aria-label="Pen tools">
+    <div class="group">
+      <button data-tool="pen" title="Pen" aria-label="Pen">
+        <svg viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L16.6 4a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.5 6l3.5 3.5"/></svg>
+      </button>
+      <button data-tool="hl" title="Highlighter" aria-label="Highlighter">
+        <svg viewBox="0 0 24 24"><path d="M9 14l-3 3v3h3l3-3"/><path d="M9 14l7.5-7.5a2 2 0 0 1 2.8 0l.2.2a2 2 0 0 1 0 2.8L12 17z"/><path d="M3 21h7" opacity=".5"/></svg>
+      </button>
+      <button data-tool="eraser" title="Eraser" aria-label="Eraser">
+        <svg viewBox="0 0 24 24"><path d="M8.5 20H20"/><path d="M4.6 15.4l9.8-9.8a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L12 18l-2 2H8.5L4.6 16.2a.6.6 0 0 1 0-.8z"/><path d="M9 11l5 5"/></svg>
+      </button>
+    </div>
+    <div class="group" id="colors"></div>
+    <div class="group" id="sizes"></div>
+    <div class="group">
+      <button id="undoBtn" title="Undo" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 7H4V2"/><path d="M4 7a8.5 8.5 0 1 1-1 7"/></svg></button>
+      <button id="redoBtn" title="Redo" aria-label="Redo"><svg viewBox="0 0 24 24"><path d="M15 7h5V2"/><path d="M20 7a8.5 8.5 0 1 0 1 7"/></svg></button>
+    </div>
+    <button id="fingerBtn" title="Draw with finger too (off = finger scrolls)" aria-label="Draw with finger">
+      <svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5V10a1.5 1.5 0 0 1 3 0v2"/><path d="M14 11a1.5 1.5 0 0 1 3 0v1.5"/><path d="M17 12a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L5 15.5a1.5 1.5 0 0 1 2.3-2L8 14.5"/></svg>
+    </button>
+  </div>
 
-      <div class="grid3">
-        <label>Type
-          <select name="type">
-            <option value="lesson">Lesson</option>
-            <option value="study">Study session</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-        <label>Date <input type="date" name="date" required /></label>
-        <div class="grid2">
-          <label>Start <input type="time" name="start" /></label>
-          <label>End <input type="time" name="end" /></label>
-        </div>
-      </div>
-
-      <label>Title <input type="text" name="title" placeholder="Optional — filled automatically for lessons" /></label>
-
-      <!-- Lesson fields -->
-      <fieldset data-for="lesson">
-        <legend>Lesson</legend>
-        <label>Student
-          <select name="studentId"></select>
-        </label>
-        <div id="lastClassBox" class="last-class"></div>
-        <label>Review from last class / homework check
-          <textarea name="review" rows="2"></textarea>
-        </label>
-        <label>Objectives for this lesson
-          <textarea name="objectives" rows="2"></textarea>
-        </label>
-        <label>Activities / lesson plan
-          <textarea name="activities" rows="3"></textarea>
-        </label>
-        <label>Materials
-          <input type="text" name="materials" placeholder="Book p. 42, slides, worksheet…" />
-        </label>
-        <div class="grid2">
-          <label>Homework to assign
-            <textarea name="homework" rows="2"></textarea>
-          </label>
-          <label>Next steps (for next class)
-            <textarea name="nextSteps" rows="2"></textarea>
-          </label>
-        </div>
-      </fieldset>
-
-      <!-- Study fields -->
-      <fieldset data-for="study">
-        <legend>Study session</legend>
-        <label>Study plan
-          <select name="planId"></select>
-        </label>
-        <div id="planTopicsBox"></div>
-        <label>Session goal
-          <textarea name="goal" rows="2" placeholder="What do I want to achieve in this session?"></textarea>
-        </label>
-      </fieldset>
-
-      <label>Notes
-        <textarea name="notes" rows="4" placeholder="How did it go? Anything to remember?"></textarea>
-      </label>
-      <label class="check"><input type="checkbox" name="done" /> Completed</label>
-
-      <div class="modal-foot">
-        <button type="button" class="btn danger ghost" id="deleteEventBtn">Delete</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn primary">Save</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- STUDENT MODAL -->
-  <dialog id="studentDialog">
-    <form id="studentForm" method="dialog">
-      <div class="modal-head">
-        <h2>Student</h2>
-        <button type="button" class="btn ghost small" data-close>✕</button>
-      </div>
-      <label>Name <input type="text" name="name" required /></label>
-      <label>Level / course <input type="text" name="level" placeholder="e.g. B1 English, 5th grade" /></label>
-      <label>Goals <textarea name="goals" rows="2"></textarea></label>
-      <label>General notes <textarea name="notes" rows="3"></textarea></label>
-      <div class="modal-foot">
-        <button type="button" class="btn danger ghost" id="deleteStudentBtn">Delete</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn primary">Save</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- PLAN MODAL -->
-  <dialog id="planDialog">
-    <form id="planForm" method="dialog">
-      <div class="modal-head">
-        <h2>Study plan</h2>
-        <button type="button" class="btn ghost small" data-close>✕</button>
-      </div>
-      <label>Title <input type="text" name="title" required placeholder="e.g. Teaching certification" /></label>
-      <label>Goal <textarea name="goal" rows="2"></textarea></label>
-      <label>Target date <input type="date" name="targetDate" /></label>
-      <label>Topics (one per line)
-        <textarea name="topics" rows="6" placeholder="Unit 1 – Phonetics&#10;Unit 2 – Grammar&#10;…"></textarea>
-      </label>
-      <div class="modal-foot">
-        <button type="button" class="btn danger ghost" id="deletePlanBtn">Delete</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn study">Save</button>
-      </div>
-    </form>
-  </dialog>
-
-  <script src="app.js"></script>
+  <div id="toast" role="status"></div>
+  <script src="pen.js"></script>
 </body>
 </html>
