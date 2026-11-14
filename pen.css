@@ -275,14 +275,14 @@ body.view-notes #toolbar { display: none; }
 
 /* ---------- calendar ---------- */
 .events { list-style: none; margin: 0; padding: 0; }
-.events li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
-.events li:last-child { border-bottom: 0; }
+.events > li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+.events > li:last-child { border-bottom: 0; }
 .events .when { flex: none; width: 92px; font-size: 13px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .events .what { min-width: 0; }
 .events .what strong { display: block; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .events .what span { font-size: 12px; color: var(--muted); }
 .events .cdot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); transform: translateY(-1px); }
-.events li.past { opacity: .5; }
+.events > li.past > .when, .events > li.past > .what, .events > li.past > .cdot { opacity: .55; }
 .icon-btn.sm { width: 30px; height: 30px; font-size: 16px; }
 
 /* ---------- dialogs ---------- */
@@ -386,8 +386,6 @@ body.view-calendar #toolbar { display: none; }
 .small-chips .calchip { font-size: 12px; padding: 3px 10px 3px 6px; }
 .me { background: color-mix(in srgb, var(--ec, #3f6fd8) 15%, #fff); color: color-mix(in srgb, var(--ec, #3f6fd8) 75%, #000); }
 .me.allday { background: var(--ec, var(--accent)); color: #fff; }
-.events li.editable { cursor: pointer; border-radius: 8px; }
-.events li.editable:hover, .events li.editable:focus-visible { background: var(--soft); outline: none; }
 .head-actions { display: inline-flex; align-items: center; gap: 4px; }
 .evrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .evrow label { flex: 1 1 140px; }
@@ -447,7 +445,7 @@ body.view-calendar #toolbar { display: none; }
 .recbtn.done { border-color: #cfe8db; background: #e3f4ec; color: #1f7a52; }
 .events button.what { border: 0; background: none; padding: 0; text-align: left; flex: 1; min-width: 0; cursor: pointer; }
 .events button.what:hover strong { text-decoration: underline; }
-.events li { align-items: center; }
+.events > li { align-items: center; }
 #granolaSend:disabled { opacity: .45; }
 body.view-class #toolbar { display: none; }
 
@@ -468,3 +466,38 @@ body.view-class #toolbar { display: none; }
 .movebox input { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 15px; background: var(--surface); }
 .gcal-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; }
 .gcal-line:empty { display: none; }
+
+/* ---------- study plan ---------- */
+#studyOverview:empty { display: none; }
+.behind { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; background: #fff6e0; border: 1px solid #f0dfb5; border-radius: 10px; padding: 8px 12px; margin: 4px 0 10px; font-size: 14px; }
+.sgroup { border-left: 4px solid var(--sc); padding: 4px 0 2px 12px; margin: 8px 0 12px; --rc: var(--sc); }
+.sgroup.extra { border-left-style: dashed; }
+.sghead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.sgname { font-weight: 700; color: var(--sc); font-size: 14px; }
+.sghead .head-actions { margin-left: auto; }
+.sgroup .rcheck small { color: var(--muted); }
+.scourses { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 24px; margin: 6px 0 10px; }
+.scourse { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.scourse strong { color: var(--sc); }
+.sbar { height: 10px; border-radius: 5px; background: var(--soft); overflow: hidden; }
+.sbar span { display: block; height: 100%; background: var(--sc); }
+.sweek h4 { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.sday { display: flex; gap: 10px; align-items: baseline; padding: 6px 4px; border-bottom: 1px solid var(--line); text-decoration: none; font-size: 13px; }
+.sday.today { background: #fff6e0; border-radius: 6px; }
+.sday .when { width: 70px; flex: none; color: var(--muted); font-weight: 600; }
+.sitem { display: inline; margin-right: 10px; border-left: 3px solid var(--sc); padding-left: 5px; }
+.sitem.ok { color: var(--muted); text-decoration: line-through; }
+.ms { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 6px; white-space: nowrap; background: #f3e6f8; color: #7a2f90; }
+.ms.alldone { background: #e3f4ec; color: #1f7a52; }
+@media (max-width: 620px) { .ms { font-size: 0; padding: 0; width: 8px; height: 8px; } }
+
+/* ---------- notes inside calendar events ---------- */
+.events > li { flex-wrap: wrap; }
+.evnotes { flex-basis: 100%; padding-left: 120px; display: flex; flex-direction: column; gap: 4px; }
+.evnotes:empty { display: none; }
+.evrec { background: var(--bg); border-radius: 8px; padding: 6px 10px; }
+.evline { margin: 2px 0; font-size: 13px; overflow-wrap: anywhere; }
+.evgranola { align-self: flex-start; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--muted); text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evnotes .gsum { margin-top: 2px; }
+@media (max-width: 620px) { .evnotes { padding-left: 18px; } }
+.events button.what:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }

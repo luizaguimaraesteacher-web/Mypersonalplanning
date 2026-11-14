@@ -558,6 +558,7 @@
     renderRoutineCard('night');
     renderCalendar();
     renderClassCard();
+    renderStudyCard();
     renderTasks();
     renderDayNotes();
   }
@@ -652,8 +653,8 @@
         el('span', { class: 'plus' }, '+'), el('span', {}, 'New study note')));
   }
 
-  function newNote(date) {
-    const n = { id: uid(), kind: 'note', date, subject: '', paper: lsGet('pp-paper', 'lines'), h: NOTE_H, strokes: [], created: Date.now() };
+  function newNote(date, subject) {
+    const n = { id: uid(), kind: 'note', date, subject: subject || '', paper: lsGet('pp-paper', 'lines'), h: NOTE_H, strokes: [], created: Date.now() };
     Store.save(n);
     go('note/' + n.id);
   }
@@ -699,6 +700,7 @@
   function showLibrary() {
     unmountAll();
     setView('notes');
+    renderStudyOverview();
     const all = Store.list('note').filter(n => n.strokes.length || n.subject);
     const subs = subjects();
     if (state.filter && !subs.includes(state.filter)) state.filter = null;
@@ -879,6 +881,7 @@
     const end = addDays(dates[dates.length - 1], 1);
 
     const tasks = Store.list('task').filter(x => x.strokes.length && x.date >= start && x.date < end);
+    const studyDoneNow = studyDone();
     const notes = Store.list('note').filter(n => (n.strokes.length || n.subject) && n.date >= start && n.date < end);
     const R = routines();
     const pip = (which, d) => {
@@ -894,11 +897,13 @@
         const dayTasks = tasks.filter(x => x.date === d);
         const open = dayTasks.filter(x => !x.done).length;
         const nNotes = notes.filter(n => n.date === d).length;
+        const sItems = studyOn(d), sDone = sItems.filter(it => studyDoneNow[it.id]).length;
         const evBox = el('span', { class: 'mev' });
         const marks = el('span', { class: 'mmarks' },
           dayTasks.length ? el('span', { class: 'mt' + (open ? '' : ' alldone'), title: open ? `${open} task${open === 1 ? '' : 's'} to do` : 'All tasks done' },
             open ? `${open} to do` : '✓ done') : null,
           nNotes ? el('span', { class: 'mn', title: `${nNotes} study note${nNotes === 1 ? '' : 's'}` }, `${nNotes} note${nNotes === 1 ? '' : 's'}`) : null,
+          sItems.length ? el('span', { class: 'ms' + (sDone === sItems.length ? ' alldone' : ''), title: `Study plan: ${sDone} of ${sItems.length} done` }, sDone === sItems.length ? '✓ study' : `${sItems.length - sDone} study`) : null,
           d <= t ? el('span', { class: 'rps' }, pip('morning', d), pip('night', d)) : null);
         const cell = el('button', {
           class: 'mcell' + (d.slice(0, 7) !== month ? ' out' : '') + (d === t ? ' today' : ''),
@@ -1222,20 +1227,26 @@ function send(o) {
   });
 
   // ---- move a task to any day ----
-  let movingTask = null;
-  function moveTask(t) {
-    movingTask = t;
-    $('#moveDate').value = addDays(t.date, 1);
+  let onMovePick = null;
+  function openMove(suggested, pick) {
+    onMovePick = pick;
+    $('#moveDate').value = suggested;
     $('#moveDlg').showModal();
   }
+  function moveTask(t) {
+    openMove(addDays(t.date, 1), date => {
+      if (date === t.date) return;
+      t.date = date;
+      Store.save(t);
+      renderTasks();
+      toast('Moved to ' + fmt(date, { weekday: 'long', month: 'short', day: 'numeric' }));
+    });
+  }
   function doMove(date) {
-    const t = movingTask;
     $('#moveDlg').close();
-    if (!t || !isDate(date) || date === t.date) return;
-    t.date = date;
-    Store.save(t);
-    renderTasks();
-    toast('Moved to ' + fmt(date, { weekday: 'long', month: 'short', day: 'numeric' }));
+    const pick = onMovePick;
+    onMovePick = null;
+    if (pick && isDate(date)) pick(date);
   }
   $('#moveTomorrow').addEventListener('click', () => doMove(addDays(today(), 1)));
   $('#moveNextWeek').addEventListener('click', () => doMove(addDays(today(), 7)));
@@ -1257,6 +1268,45 @@ function send(o) {
     }
   }
 
+  // The notes kept for a class, shown inside its calendar event
+  function classSummary(rec) {
+    const line = (label, text) => text && text.trim() ? el('p', { class: 'evline' }, el('b', {}, label + ': '), text.trim().length > 220 ? text.trim().slice(0, 220) + '…' : text.trim()) : null;
+    const parts = [line('Covered', rec.covered), line('Homework', rec.homework), line('Notes', rec.notes)].filter(Boolean);
+    if (!parts.length && rec.transcript && rec.transcript.trim()) parts.push(el('p', { class: 'evline muted' }, 'Recording saved.'));
+    if (rec.gMoved && rec.gMovedTo) parts.unshift(el('p', { class: 'evline muted' }, 'Moved to ' + dayTime(rec.gMovedTo)));
+    return parts.length ? el('div', { class: 'evrec' }, parts) : null;
+  }
+  // Granola notes that belong to each event (same time, or the event's name in the note title)
+  async function attachEventNotes(body, date) {
+    if (!EMBED) return;
+    let list;
+    try { list = await granolaDay(date); } catch { return; }
+    if (state.date !== date || !body.isConnected) return;
+    const used = new Set();
+    body.querySelectorAll('.evnotes').forEach(box => {
+      const start = Number(box.dataset.start), title = (box.dataset.title || '').toLowerCase();
+      const m = list.find(g => !used.has(g.id) && !g.upcoming && (Math.abs(g.at - start) < 45 * 60e3 || (title.length > 2 && className(g.title).includes(className(title)))));
+      if (!m) return;
+      used.add(m.id);
+      const sum = el('div', { class: 'gsum', hidden: true });
+      const btn = el('button', { class: 'evgranola', 'aria-expanded': 'false' }, '📝 Granola notes' + (m.headers.length ? ': ' + m.headers.slice(0, 3).join(' · ') : ''));
+      btn.onclick = async () => {
+        const open = sum.hidden;
+        sum.hidden = !open;
+        btn.setAttribute('aria-expanded', String(open));
+        if (!open || sum.dataset.loaded) return;
+        fill(sum, el('p', { class: 'muted small' }, 'Loading…'));
+        try {
+          const md = await granolaSummary(m.id);
+          sum.dataset.loaded = '1';
+          fill(sum, md ? renderMarkdown(md) : el('p', { class: 'muted small' }, 'Granola hasn\'t written a summary for this one yet.'),
+            m.url ? el('a', { class: 'mini', href: m.url, target: '_blank', rel: 'noopener' }, 'Open in Granola ↗') : null);
+        } catch (err) { fill(sum, el('p', { class: 'small' }, connectorProblem(err, 'Granola', 'your Granola notes')[0])); }
+      };
+      box.append(btn, sum);
+    });
+  }
+
   function drawEvents(body, events) {
     if (!events.length) { fill(body, el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
     const now = Date.now();
@@ -1271,7 +1321,9 @@ function send(o) {
         el('span', { class: 'when' }, ev.allDay ? 'All day' : timeOf(ev.start)),
         canEdit ? el('button', { class: 'what', title: 'Edit this event', onclick: () => openEventEditor(ev) }, what) : el('span', { class: 'what' }, what),
         ev.allDay ? null : el('button', { class: 'recbtn' + (rec ? ' done' : ''), title: rec ? 'Open this class record' : 'Record this class', onclick: () => openClassFor(ev) },
-          rec ? (rec.status ? statusLabel(rec.status) : 'Notes ✓') : '● Record'));
+          rec ? (rec.status ? statusLabel(rec.status) : 'Notes ✓') : '● Record'),
+        ev.allDay ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
+          rec ? classSummary(rec) : null));
     })));
   }
 
@@ -1289,6 +1341,7 @@ function send(o) {
         const events = await fetchEvents(date, addDays(date, 1), force);
         if (state.date !== date) return;
         drawEvents(body, visibleEvents(events));
+        attachEventNotes(body, date);
         if (events.failed && events.failed.length) body.append(el('p', { class: 'muted small' }, `Couldn't read: ${events.failed.join(', ')}.`));
         renderCalChips(chips, () => renderCalendar());
       } catch (err) {
@@ -1818,6 +1871,216 @@ function send(o) {
     } finally { drawGranolaSend(); }
   });
 
+  // ---------- study plan ----------
+  // A plan has two kinds of course: "gp" (topics, 2 per weekday, 3 on Fridays, 1 a day for the first 3 days)
+  // and "pg" (subjects: a whole subject each Saturday while gp runs, then 1 class per weekday + a review/exam day).
+  // Sundays and holidays are free. Unfinished items can be replanned from any day with the same rules.
+  const studyPlan = () => Config.get('studyPlan', null);
+  const studyDone = () => Config.get('studyDone', {});
+  const studySched = () => Config.get('studySched', { sched: {}, weeks: {} });
+  const dow = d => parse(d).getDay(); // 0 Sun … 6 Sat
+  const mondayOf = d => addDays(d, -((dow(d) + 6) % 7));
+
+  function studyItems(plan) {
+    const items = [];
+    if (!plan) return items;
+    if (plan.gp) plan.gp.modules.forEach((m, mi) => m.topics.forEach((t, ti) => {
+      const closing = t.startsWith('*');
+      items.push({ id: `gp-${mi}-${ti}`, course: 'gp', group: m.name, gi: mi, title: closing ? t.slice(1) : t, closing });
+    }));
+    if (plan.pg) plan.pg.discs.forEach((dsc, di) => {
+      dsc.aulas.forEach((a, ai) => items.push({ id: `pg-${di}-${ai}`, course: 'pg', group: dsc.name, gi: di, title: a, n: ai + 1 }));
+      items.push({ id: `pg-${di}-p`, course: 'pg', group: dsc.name, gi: di, title: 'Demais aulas, revisão e prova (aba Provas)', exam: true });
+    });
+    return items;
+  }
+  const studyExtras = plan => (plan && plan.gp && plan.gp.extras || []).map(x => ({ ...x, id: 'x-' + x.id, course: 'gp' }));
+
+  function buildStudySchedule(plan, from, done) {
+    const hol = plan.holidays || {};
+    const free = d => dow(d) === 0 || !!hol[d];
+    const weekday = d => dow(d) >= 1 && dow(d) <= 5 && !hol[d];
+    const items = studyItems(plan).filter(it => !done[it.id]);
+    const gp = items.filter(it => it.course === 'gp');
+    const anyGpDone = studyItems(plan).some(it => it.course === 'gp' && done[it.id]);
+    const sched = {}, weeks = {};
+    // topic course ("gp") on weekdays
+    let lastGp = null, days = 0;
+    for (let d = from, i = 0; i < gp.length; d = addDays(d, 1)) {
+      if (!weekday(d)) continue;
+      const n = !anyGpDone && days < 3 ? 1 : dow(d) === 5 ? 3 : 2;
+      for (let k = 0; k < n && i < gp.length; k++) sched[gp[i++].id] = d;
+      days++; lastGp = d;
+    }
+    // subject course ("pg"): whole subjects on Saturdays while "gp" runs (through the Saturday of its last week)
+    const discs = [];
+    items.filter(it => it.course === 'pg').forEach(it => { (discs[it.gi] = discs[it.gi] || []).push(it); });
+    const queue = discs.filter(Boolean);
+    let phaseB = from;
+    if (lastGp) {
+      const lastSat = addDays(lastGp, 6 - dow(lastGp));
+      let s = addDays(from, (6 - dow(from) + 7) % 7);
+      while (s <= lastSat && queue.length) {
+        if (!hol[s]) queue.shift().forEach(it => { sched[it.id] = s; });
+        s = addDays(s, 7);
+      }
+      phaseB = addDays(lastSat, 2);
+    }
+    // then one class a day on weekdays, the exam/review day closing each subject
+    let d = phaseB;
+    for (const disc of queue) for (const it of disc) {
+      while (!weekday(d)) d = addDays(d, 1);
+      sched[it.id] = d;
+      d = addDays(d, 1);
+    }
+    // extras: the week a module starts ("when": module index) or the week "gp" ends
+    for (const x of studyExtras(plan)) {
+      if (done[x.id]) continue;
+      let at = lastGp;
+      if (typeof x.when === 'number') {
+        const first = studyItems(plan).find(it => it.course === 'gp' && it.gi === x.when && sched[it.id]);
+        at = first ? sched[first.id] : lastGp;
+      }
+      if (at) weeks[x.id] = mondayOf(at);
+    }
+    return { sched, weeks, from, built: Date.now() };
+  }
+
+  function replanStudies(from) {
+    const plan = studyPlan();
+    if (!plan) return;
+    const prev = studySched();
+    const next = buildStudySchedule(plan, from, studyDone());
+    // keep the dates of things already done
+    for (const [id, d] of Object.entries(prev.sched || {})) if (studyDone()[id]) next.sched[id] = d;
+    Config.set('studySched', next);
+  }
+
+  // Seed: the plan that ships with this page, the first time it opens
+  function seedStudyPlan() {
+    if (studyPlan() || Config.get('studySeeded', false)) return;
+    const tag = document.getElementById('studySeed');
+    if (!tag) return;
+    try {
+      const plan = JSON.parse(tag.textContent);
+      Config.set('studyPlan', plan);
+      Config.set('studySeeded', true);
+      Config.set('studySched', buildStudySchedule(plan, plan.start || today(), {}));
+    } catch (e) { console.warn(e); }
+  }
+
+  const courseOf = (plan, c) => plan && plan[c] ? plan[c] : { name: c, color: '#5b6778' };
+  function studyOn(date) {
+    const plan = studyPlan();
+    if (!plan) return [];
+    const s = studySched().sched || {};
+    return studyItems(plan).filter(it => s[it.id] === date);
+  }
+  function studyBehind() {
+    const plan = studyPlan(), s = studySched().sched || {}, done = studyDone(), t = today();
+    return plan ? studyItems(plan).filter(it => !done[it.id] && s[it.id] && s[it.id] < t) : [];
+  }
+  function toggleStudy(id) {
+    const done = { ...studyDone() };
+    if (done[id]) delete done[id]; else done[id] = today();
+    Config.set('studyDone', done);
+  }
+  function studyProgress(plan, course) {
+    const all = studyItems(plan).filter(it => it.course === course), done = studyDone(), s = studySched().sched || {};
+    const n = all.filter(it => done[it.id]).length;
+    const next = all.find(it => !done[it.id]);
+    const last = all.map(it => s[it.id]).filter(Boolean).sort().pop();
+    return { n, total: all.length, next, nextDate: next ? s[next.id] : null, end: last };
+  }
+
+  // Day card
+  function renderStudyCard() {
+    const card = $('#studyCard'), date = state.date, plan = studyPlan();
+    if (!plan) { card.hidden = true; return; }
+    card.hidden = false;
+    const done = studyDone(), items = studyOn(date);
+    const behind = date === today() ? studyBehind() : [];
+    const hol = (plan.holidays || {})[date];
+    const groups = [];
+    for (const it of items) {
+      const last = groups[groups.length - 1];
+      if (last && last.course === it.course && last.group === it.group) last.items.push(it);
+      else groups.push({ course: it.course, group: it.group, items: [it] });
+    }
+    const weekExtras = studyExtras(plan).filter(x => (studySched().weeks || {})[x.id] === mondayOf(date) && !done[x.id]);
+    const check = it => el('li', {}, el('button', {
+      class: 'rcheck' + (done[it.id] ? ' on' : ''), 'aria-pressed': String(!!done[it.id]),
+      onclick: () => { toggleStudy(it.id); renderStudyCard(); },
+    }, el('span', { class: 'box' }), el('span', { class: 'label' }, it.title, it.closing ? el('small', {}, ' (fechamento)') : null)));
+    const total = items.length, nDone = items.filter(it => done[it.id]).length;
+    fill(card,
+      el('div', { class: 'card-head' },
+        el('h2', {}, el('span', { class: 'dot', style: 'background:#9b3fb5' }), 'Study plan'),
+        el('span', { class: 'muted' }, total ? `${nDone} of ${total}` : '')),
+      behind.length ? el('div', { class: 'behind' },
+        el('span', {}, `${behind.length} item${behind.length === 1 ? '' : 's'} from earlier days ${behind.length === 1 ? 'isn\'t' : 'aren\'t'} done.`),
+        el('button', { class: 'mini primary', onclick: () => { replanStudies(today()); renderStudyCard(); toast('Plan moved forward from today'); } }, 'Replan from today')) : null,
+      groups.length ? groups.map(g => {
+        const c = courseOf(plan, g.course);
+        return el('div', { class: 'sgroup', style: `--sc:${c.color}` },
+          el('div', { class: 'sghead' },
+            el('span', { class: 'sgname' }, c.name), el('span', { class: 'muted small' }, g.group),
+            el('span', { class: 'head-actions' },
+              el('button', { class: 'mini', onclick: () => newNote(date, c.name) }, '+ Note'),
+              el('button', { class: 'mini', onclick: () => moveStudyGroup(g.items) }, 'Move…'))),
+          el('ul', { class: 'routine' }, g.items.map(check)));
+      }) : el('p', { class: 'muted small' }, hol ? `${hol}: no studying planned.` : dow(date) === 0 ? 'Sunday: free.' : 'Nothing planned for this day.'),
+      weekExtras.length ? el('div', { class: 'sgroup extra', style: `--sc:${courseOf(plan, 'gp').color}` },
+        el('div', { class: 'sghead' }, el('span', { class: 'sgname' }, 'This week, when you can'), el('span', { class: 'muted small' }, courseOf(plan, 'gp').name)),
+        el('ul', { class: 'routine' }, weekExtras.map(x => check({ id: x.id, title: x.name })))) : null);
+  }
+  function moveStudyGroup(items) {
+    openMove(addDays(state.date, 1), date => {
+      const cur = studySched();
+      const next = { ...cur, sched: { ...cur.sched } };
+      items.forEach(it => { next.sched[it.id] = date; });
+      Config.set('studySched', next);
+      renderStudyCard();
+      toast('Moved to ' + fmt(date, { weekday: 'long', month: 'short', day: 'numeric' }));
+    });
+  }
+
+  // Overview at the top of the Studies tab
+  function renderStudyOverview() {
+    const box = $('#studyOverview'), plan = studyPlan();
+    if (!plan) { fill(box); return; }
+    const done = studyDone(), s = studySched().sched || {}, t = today();
+    const behind = studyBehind();
+    const course = c => {
+      const p = studyProgress(plan, c), info = courseOf(plan, c);
+      return el('div', { class: 'scourse', style: `--sc:${info.color}` },
+        el('strong', {}, info.name),
+        el('div', { class: 'sbar' }, el('span', { style: `width:${p.total ? (p.n / p.total * 100).toFixed(1) : 0}%` })),
+        el('span', { class: 'muted small' }, `${p.n} of ${p.total} done` + (p.end ? ` · ends ${fmt(p.end, { day: 'numeric', month: 'short' })}` : '')),
+        p.next ? el('span', { class: 'small' }, 'Next: ', el('b', {}, p.next.title), p.nextDate ? ` · ${fmt(p.nextDate, { weekday: 'short', day: 'numeric', month: 'short' })}` : '') : el('span', { class: 'small' }, 'Finished!'));
+    };
+    // schedule list by week
+    const byDate = new Map();
+    for (const it of studyItems(plan)) { const d = s[it.id]; if (!d) continue; if (!byDate.has(d)) byDate.set(d, []); byDate.get(d).push(it); }
+    const dates = [...byDate.keys()].sort();
+    const weeksList = new Map();
+    for (const d of dates) { const w = mondayOf(d); if (!weeksList.has(w)) weeksList.set(w, []); weeksList.get(w).push(d); }
+    fill(box,
+      el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:#9b3fb5' }), plan.name || 'Study plan'),
+        el('button', { class: 'mini', onclick: () => { replanStudies(t); renderStudyOverview(); toast('Plan moved forward from today'); } }, 'Replan from today')),
+      el('div', { class: 'scourses' }, ['gp', 'pg'].filter(c => plan[c]).map(course)),
+      behind.length ? el('p', { class: 'behind' }, `${behind.length} item${behind.length === 1 ? '' : 's'} from earlier days not done yet. Replan from today moves everything left forward.`) : null,
+      el('details', { class: 'lc-more' }, el('summary', {}, 'Full schedule'),
+        [...weeksList].map(([w, ds]) => el('div', { class: 'sweek' },
+          el('h4', {}, 'Week of ' + fmt(w, { day: 'numeric', month: 'short' })),
+          ds.map(d => el('a', { class: 'sday' + (d === t ? ' today' : ''), href: '#day/' + d },
+            el('span', { class: 'when' }, fmt(d, { weekday: 'short', day: 'numeric' })),
+            el('span', {}, byDate.get(d).map(it => {
+              const ok = done[it.id];
+              return el('span', { class: 'sitem' + (ok ? ' ok' : ''), style: `--sc:${courseOf(plan, it.course).color}` }, (ok ? '✓ ' : '') + it.title);
+            }))))))));
+  }
+
   // ---------- routing ----------
   // On GitHub Pages the address bar keeps the view (#day/2026-11-07), so Back works.
   // Inside Claude the hash can only hold plain names, so the view lives in memory.
@@ -1917,5 +2180,5 @@ function send(o) {
 
   if (!EMBED && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-  Store.init().then(route);
+  Store.init().then(() => { seedStudyPlan(); route(); });
 })();

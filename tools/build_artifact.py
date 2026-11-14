@@ -18,15 +18,27 @@ body = re.search(r"<body>(.*)</body>", html, re.S).group(1)
 body = body.replace('<script src="pen.js"></script>', "").strip()
 # The GitHub-only pieces (install hint, Apps Script setup) stay in the markup;
 # pen.js hides them when it runs inside Claude.
+# Personal study plan (kept out of the public repo): seeds the planner the first time it opens.
+seed_file = root / "private" / "study-plan.json"
+seed = ""
+if seed_file.exists():
+    seed_json = seed_file.read_text().replace("</", "<\\/")
+    seed = f'<script type="application/json" id="studySeed">{seed_json}</script>\n'
 out = f"""<title>Pen Planner</title>
 <style>
 {css}
 </style>
 {body}
-<script>
+{seed}<script>
 {js}
 </script>
 """
+# The committed copy never carries the personal plan; the private copy (published) does.
+public = out.replace(seed, "") if seed else out
 dest = root / "artifact" / "pen-planner.html"
-dest.write_text(out)
-print(f"Wrote {dest} ({len(out):,} bytes)")
+dest.write_text(public)
+print(f"Wrote {dest} ({len(public):,} bytes)")
+if seed:
+    private = root / "private" / "pen-planner.html"
+    private.write_text(out)
+    print(f"Wrote {private} with the study plan ({len(out):,} bytes)")
