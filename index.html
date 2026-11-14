@@ -64,6 +64,8 @@
         <section class="card" id="calCard"></section>
       </div>
 
+      <section class="card" id="classCard"></section>
+
       <section class="card">
         <div class="card-head">
           <h2><span class="dot task"></span>Tasks</h2>
@@ -110,6 +112,49 @@
           <span><span class="rp morning full"></span><span class="rp night part"></span> morning &amp; night routine</span>
         </div>
       </div>
+    </section>
+
+    <!-- ONE CLASS -->
+    <section id="view-class" class="view">
+      <div class="notehead">
+        <a class="mini" id="classBack" href="#day">‹ Back</a>
+        <input id="classTitle" placeholder="Class or student" autocomplete="off" aria-label="Class or student" />
+        <input type="date" id="classDate" aria-label="Day of the class" />
+        <input type="time" id="classTime" aria-label="Start time" step="300" />
+        <button class="mini danger" id="classDelete">Delete</button>
+      </div>
+      <p id="classWhen" class="muted small"></p>
+
+      <section class="card">
+        <h2>How did it go?</h2>
+        <div id="classStatus" class="statusrow"></div>
+      </section>
+
+      <section class="card rec">
+        <div class="card-head"><h2><span class="dot" style="background:#b22133"></span>Recording</h2><span id="recState" class="rec-live"></span></div>
+        <div class="rec-controls">
+          <button id="recBtn" class="rec-btn" hidden>● Start recording</button>
+          <span id="recHint" class="muted small"></span>
+        </div>
+        <p id="recPartial" class="partial"></p>
+        <textarea id="classTranscript" rows="9" placeholder="What was said in class appears here."></textarea>
+      </section>
+
+      <div class="duo">
+        <section class="card"><h2>What we covered</h2><textarea id="classCovered" rows="5" placeholder="Topics, vocabulary, pages…"></textarea></section>
+        <section class="card"><h2>Homework</h2><textarea id="classHomework" rows="5" placeholder="What the student should do before next class"></textarea></section>
+      </div>
+      <section class="card"><h2>Notes</h2><textarea id="classNotes" rows="4" placeholder="Anything else to remember"></textarea></section>
+
+      <section class="card">
+        <div class="card-head"><h2>Granola</h2></div>
+        <div id="granolaMatch"></div>
+        <div class="rec-controls">
+          <button class="mini primary" id="granolaSend">Send recording to Granola</button>
+          <span id="granolaSent" class="small"></span>
+        </div>
+        <p id="granolaMsg" class="small muted"></p>
+      </section>
     </section>
 
     <!-- ONE STUDY NOTE -->

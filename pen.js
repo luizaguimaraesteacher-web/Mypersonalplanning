@@ -541,6 +541,7 @@
       if (it.id === keepId) continue;
       if (it.kind === 'task' && !it.strokes.length) Store.remove(it.id);
       if (it.kind === 'note' && !it.strokes.length && !it.subject) Store.remove(it.id);
+      if (it.kind === 'class' && !it.eventId && !it.title && !it.status && !(it.transcript || it.covered || it.homework || it.notes || '').trim()) Store.remove(it.id);
     }
   }
 
@@ -556,6 +557,7 @@
     renderRoutineCard('morning');
     renderRoutineCard('night');
     renderCalendar();
+    renderClassCard();
     renderTasks();
     renderDayNotes();
   }
@@ -1240,17 +1242,18 @@ function send(o) {
   $('#moveGo').addEventListener('click', () => doMove($('#moveDate').value));
   $('#moveCancel').addEventListener('click', () => $('#moveDlg').close());
 
-  function connectorProblem(err) {
+  function connectorProblem(err, server = 'Google Calendar', what = 'your calendar') {
     const retry = ['Try again', true];
     switch (err && err.code) {
-      case 'needs_reauth': return ['Google Calendar needs to be reconnected: in claude.ai go to Settings → Connectors → Google Calendar.', retry];
-      case 'server_not_connected': case 'server_not_found': return ['Google Calendar isn\'t connected to your Claude account. Add it in claude.ai Settings → Connectors, then try again.', retry];
-      case 'selection_required': return ['Choose which Google Calendar connection to use when Claude asks, then try again.', retry];
-      case 'not_in_manifest': case 'approval_required': case 'consent_required': return ['The planner needs your OK to read your calendar.', ['Allow calendar', true]];
-      case 'blocked_by_policy': return ['Your organization doesn\'t allow this page to read Google Calendar.', null];
+      case 'needs_reauth': return [`${server} needs to be reconnected: in claude.ai go to Settings → Connectors → ${server}.`, retry];
+      case 'server_not_connected': case 'server_not_found': return [`${server} isn't connected to your Claude account. Add it in claude.ai Settings → Connectors, then try again.`, retry];
+      case 'selection_required': return [`Choose which ${server} connection to use when Claude asks, then try again.`, retry];
+      case 'not_in_manifest': case 'approval_required': case 'consent_required': return [`The planner needs your OK to use ${what}.`, ['Allow', true]];
+      case 'blocked_by_policy': return [`Your organization doesn't allow this page to use ${server}.`, null];
       case 'no_mcp': case 'not_granted': case 'capability_disabled': case 'capability_removed':
-        return ['The calendar shows up when you open the planner inside Claude.', null];
-      default: return ['Google Calendar didn\'t answer just now.', retry];
+        return [`${server} shows up when you open the planner inside Claude.`, null];
+      case 'tool_error': return [`${server} said: ${String((err && err.message) || 'something went wrong').slice(0, 200)}`, retry];
+      default: return [`${server} didn't answer just now.`, retry];
     }
   }
 
@@ -1260,14 +1263,15 @@ function send(o) {
     fill(body, el('ul', { class: 'events' }, events.map(ev => {
       const color = /^#[0-9a-f]{3,8}$/i.test(ev.color || '') ? ev.color : null;
       const canEdit = EMBED && ev.id;
-      return el('li', { class: (!ev.allDay && ev.end && ev.end < now ? 'past' : '') + (canEdit ? ' editable' : ''),
-          role: canEdit ? 'button' : null, tabindex: canEdit ? '0' : null, title: canEdit ? 'Edit this event' : null,
-          onclick: canEdit ? () => openEventEditor(ev) : null,
-          onkeydown: canEdit ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEventEditor(ev); } } : null },
+      const rec = !ev.allDay ? Store.items.get(classKey(ev)) : null;
+      const what = [el('strong', {}, ev.title || '(No title)'),
+        el('span', {}, [ev.allDay || !ev.end ? null : `until ${timeOf(ev.end)}`, ev.location || null].filter(Boolean).join(' · '))];
+      return el('li', { class: (!ev.allDay && ev.end && ev.end < now ? 'past' : '') + (canEdit ? ' editable' : '') },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, ev.allDay ? 'All day' : timeOf(ev.start)),
-        el('span', { class: 'what' }, el('strong', {}, ev.title || '(No title)'),
-          el('span', {}, [ev.allDay || !ev.end ? null : `until ${timeOf(ev.end)}`, ev.location || null].filter(Boolean).join(' · '))));
+        canEdit ? el('button', { class: 'what', title: 'Edit this event', onclick: () => openEventEditor(ev) }, what) : el('span', { class: 'what' }, what),
+        ev.allDay ? null : el('button', { class: 'recbtn' + (rec ? ' done' : ''), title: rec ? 'Open this class record' : 'Record this class', onclick: () => openClassFor(ev) },
+          rec ? (rec.status ? statusLabel(rec.status) : 'Notes ✓') : '● Record'));
     })));
   }
 
@@ -1357,6 +1361,330 @@ function send(o) {
     if (document.body.classList.contains('view-day')) renderCalendar();
   });
 
+  // ---------- Granola notes ----------
+  async function granolaCall(tool, input, force) {
+    const mcp = await window.claude.use('mcp').catch(() => null);
+    if (!mcp) throw { code: 'no_mcp' };
+    const r = await mcp.callTool('Granola', tool, input, force ? { cache: false } : undefined);
+    if (r && typeof r.payload === 'string') return r.payload;
+    if (r && r.payload && typeof r.payload === 'object') return r.payload;
+    return ((r && r.content) || []).filter(c => c && c.type === 'text').map(c => c.text).join('\n');
+  }
+  const granolaUrl = u => /^https:\/\/notes\.granola\.ai\/[\w\-/]+$/.test(u || '') ? u : '';
+  // Granola answers with tagged text; read it as HTML (never shown as HTML, only via textContent).
+  function parseGranolaMeetings(text) {
+    if (typeof text !== 'string') return [];
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    return [...doc.querySelectorAll('meeting, upcoming_meeting')].map(m => {
+      const at = Date.parse(m.getAttribute('meeting_at') || '') || 0;
+      const sum = m.querySelector('summary');
+      return {
+        id: m.getAttribute('id') || '', title: m.getAttribute('title') || 'Untitled meeting', at,
+        end: Date.parse(m.getAttribute('ends_at') || '') || 0, url: granolaUrl(m.getAttribute('url')),
+        upcoming: m.tagName.toLowerCase() === 'upcoming_meeting',
+        headers: ((m.querySelector('note_headers') || {}).textContent || '').split('\n').map(x => x.trim()).filter(Boolean),
+        summary: sum ? sum.textContent.trim() : '',
+      };
+    }).filter(m => m.id);
+  }
+  const granolaCache = new Map();
+  async function granolaDay(date, force) {
+    if (!force && granolaCache.has(date)) return granolaCache.get(date);
+    const text = await granolaCall('search_meetings', { from_date: date, to_date: date, limit: 30, max_participants: 3, include_shared: false }, force);
+    const list = parseGranolaMeetings(text).sort((a, b) => a.at - b.at);
+    granolaCache.set(date, list);
+    return list;
+  }
+  async function granolaSummary(id) {
+    const text = await granolaCall('get_meetings', { meeting_ids: [id], attachments: 'none', max_participants: 3 });
+    const m = parseGranolaMeetings(text)[0];
+    return m ? m.summary : '';
+  }
+  // Small Markdown reader for Granola summaries (headings, bullets, numbers, paragraphs).
+  function renderMarkdown(md) {
+    const box = el('div', { class: 'md' });
+    let list = null;
+    for (const raw of String(md || '').split('\n')) {
+      const line = raw.replace(/\s+$/, '');
+      if (!line.trim()) { list = null; continue; }
+      const h = /^(#{1,4})\s+(.*)$/.exec(line);
+      const b = /^(\s*)(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
+      if (h) { list = null; box.append(el(h[1].length <= 1 ? 'h4' : 'h5', {}, h[2])); }
+      else if (b) {
+        if (!list) { list = el('ul'); box.append(list); }
+        list.append(el('li', { style: `margin-left:${Math.min(4, Math.floor(b[1].length / 2)) * 16}px` }, b[2]));
+      } else { list = null; box.append(el('p', {}, line.trim())); }
+    }
+    return box;
+  }
+
+  // ---------- recorded classes ----------
+  const classes = () => Store.list('class');
+  const classKey = ev => 'cls-' + String(ev.id || ('t' + ev.start)).replace(/[^A-Za-z0-9_.~:@+-]/g, '-').slice(0, 150);
+  const STATUSES = [['happened', 'Happened'], ['noshow', 'Student missed'], ['cancelled', 'Cancelled'], ['moved', 'Rescheduled']];
+  const statusLabel = s => (STATUSES.find(x => x[0] === s) || [, ''])[1];
+
+  function openClassFor(ev) {
+    const id = classKey(ev);
+    if (!Store.items.has(id)) {
+      Store.save({
+        id, kind: 'class', date: iso(new Date(ev.start)), title: ev.title || '', start: ev.start, end: ev.end || 0,
+        eventId: ev.id || '', calId: ev.calId || '', status: '', transcript: '', covered: '', homework: '', notes: '', created: Date.now(),
+      });
+    }
+    go('class/' + id);
+  }
+  function newClass(date) {
+    const now = new Date(), d = parse(date);
+    d.setHours(now.getHours(), now.getMinutes() - now.getMinutes() % 5, 0, 0);
+    const id = 'cls-' + uid();
+    Store.save({ id, kind: 'class', date, title: '', start: d.getTime(), end: d.getTime() + 36e5, eventId: '', calId: '', status: '', transcript: '', covered: '', homework: '', notes: '', created: Date.now() });
+    go('class/' + id);
+  }
+
+  // Day card: classes recorded in the planner + Granola notes for the day
+  async function renderClassCard(force) {
+    const card = $('#classCard'), date = state.date;
+    const recs = classes().filter(c => c.date === date).sort((a, b) => a.start - b.start);
+    const granolaBox = el('div', {});
+    fill(card,
+      el('div', { class: 'card-head' },
+        el('h2', {}, el('span', { class: 'dot', style: 'background:#b22133' }), 'Classes & notes'),
+        el('span', { class: 'head-actions' },
+          el('button', { class: 'mini', onclick: () => newClass(date) }, '● Record a class'),
+          EMBED ? el('button', { class: 'icon-btn sm', title: 'Refresh Granola notes', 'aria-label': 'Refresh Granola notes', onclick: () => renderClassCard(true) }, '↻') : null)),
+      recs.length ? el('ul', { class: 'classlist' }, recs.map(c => el('li', {},
+        el('a', { href: '#class/' + c.id },
+          el('span', { class: 'when' }, timeOf(c.start)),
+          el('strong', {}, c.title || 'Class'),
+          c.status ? el('span', { class: 'st st-' + c.status }, statusLabel(c.status)) : null,
+          c.transcript ? el('span', { class: 'muted small' }, 'recorded') : null,
+          c.granola && c.granola.url ? el('span', { class: 'muted small' }, '· in Granola') : null)))) :
+        el('p', { class: 'muted small' }, 'Tap Record on a class in your calendar, or Record a class, to keep its notes, homework and recording here.'),
+      EMBED ? granolaBox : null);
+    if (!EMBED) return;
+    fill(granolaBox, el('h3', { class: 'subhead' }, 'Granola notes'), el('p', { class: 'muted small' }, 'Loading your Granola notes…'));
+    try {
+      const list = await granolaDay(date, force);
+      if (state.date !== date) return;
+      if (!list.length) { fill(granolaBox, el('h3', { class: 'subhead' }, 'Granola notes'), el('p', { class: 'muted small' }, 'No Granola notes this day.')); return; }
+      fill(granolaBox, el('h3', { class: 'subhead' }, 'Granola notes'), el('ul', { class: 'glist' }, list.map(m => granolaItem(m))));
+    } catch (err) {
+      if (state.date !== date) return;
+      console.warn(err);
+      const [msg, action] = connectorProblem(err, 'Granola', 'your Granola notes');
+      fill(granolaBox, el('h3', { class: 'subhead' }, 'Granola notes'), el('p', { class: 'small' }, msg + ' '),
+        action ? el('button', { class: 'mini', onclick: () => renderClassCard(true) }, action[0]) : null);
+    }
+  }
+  function granolaItem(m) {
+    const body = el('div', { class: 'gsum', hidden: true });
+    const toggle = el('button', { class: 'mini', 'aria-expanded': 'false' }, 'Summary');
+    toggle.onclick = async () => {
+      const open = body.hidden;
+      body.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.textContent = open ? 'Hide' : 'Summary';
+      if (!open || body.dataset.loaded) return;
+      fill(body, el('p', { class: 'muted small' }, 'Loading…'));
+      try {
+        const md = await granolaSummary(m.id);
+        body.dataset.loaded = '1';
+        fill(body, md ? renderMarkdown(md) : el('p', { class: 'muted small' }, 'Granola hasn\'t written a summary for this one yet.'));
+      } catch (err) { fill(body, el('p', { class: 'small' }, connectorProblem(err, 'Granola', 'your Granola notes')[0])); }
+    };
+    return el('li', {},
+      el('div', { class: 'grow' },
+        el('span', { class: 'when' }, m.at ? timeOf(m.at) : ''),
+        el('strong', {}, m.title),
+        m.upcoming ? el('span', { class: 'muted small' }, 'not started yet') : (m.headers.length ? el('span', { class: 'muted small' }, m.headers.slice(0, 3).join(' · ')) : null)),
+      el('span', { class: 'head-actions' }, m.upcoming ? null : toggle,
+        m.url ? el('a', { class: 'mini', href: m.url, target: '_blank', rel: 'noopener' }, 'Open ↗') : null),
+      body);
+  }
+
+  // ---- the class page ----
+  let Dict = null;            // dictation namespace (desktop app / Chrome only)
+  let recClass = null;        // class being recorded into
+  let lastFinalAt = 0;
+  if (EMBED) {
+    window.claude.use('dictation').then(d => {
+      Dict = d || null;
+      if (!Dict) return;
+      Dict.onPartial(({ text }) => { $('#recPartial').textContent = text || ''; });
+      Dict.onFinal(({ text }) => appendTranscript(text));
+      Dict.onState(({ state: st, reason }) => drawRecState(st, reason));
+    }).catch(() => { Dict = null; });
+  }
+  const mmss = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60; return (h ? h + ':' + pad(m) : pad(m)) + ':' + pad(s % 60); };
+  function appendTranscript(text) {
+    const c = recClass;
+    if (!c || !text) return;
+    const ta = $('#classTranscript');
+    const now = Date.now();
+    if (!c.recStartedAt) c.recStartedAt = now;
+    let add = text;
+    if (!ta.value || now - lastFinalAt > 8000) add = (ta.value ? '\n' : '') + `[${mmss((now - c.recStartedAt) / 1000)}] ` + text.replace(/^\s+/, '');
+    lastFinalAt = now;
+    ta.value += add;
+    c.transcript = ta.value;
+    Store.save(c);
+    drawGranolaSend();
+    ta.scrollTop = ta.scrollHeight;
+  }
+  function drawRecState(st, reason) {
+    const btn = $('#recBtn'), lab = $('#recState');
+    const on = st !== 'idle';
+    btn.classList.toggle('on', on);
+    btn.textContent = st === 'listening' ? '■ Stop recording' : st === 'starting' ? 'Starting…' : st === 'finishing' ? 'Finishing…' : '● Start recording';
+    lab.textContent = st === 'listening' ? 'Listening…' : '';
+    if (st === 'idle') {
+      $('#recPartial').textContent = '';
+      const why = { time_limit: 'Recording stops after 60 minutes. Tap Start to keep going.', hidden: 'Recording paused because the page was hidden. Tap Start to continue.',
+        not_granted: 'The planner isn\'t allowed to use your microphone. You can change that in this page\'s Permissions menu.',
+        unavailable: 'Recording isn\'t available here.', rate_limited: 'Too many recordings at once. Try again in a moment.',
+        upstream_error: 'The microphone or speech service stopped working. Tap Start to try again.' }[reason];
+      if (why) toast(why, 6000);
+    }
+  }
+
+  function showClass(c) {
+    unmountAll();
+    recClass = c;
+    setView('class');
+    $('#classBack').href = '#day/' + c.date;
+    const bind = (sel, key, after) => {
+      const f = $(sel);
+      f.value = c[key] || '';
+      f.oninput = () => { c[key] = f.value; Store.save(c); if (after) after(); };
+    };
+    bind('#classTitle', 'title');
+    bind('#classTranscript', 'transcript', drawGranolaSend);
+    bind('#classCovered', 'covered');
+    bind('#classHomework', 'homework');
+    bind('#classNotes', 'notes');
+    $('#classDate').value = c.date;
+    $('#classTime').value = c.start ? hm(c.start) : '';
+    const moveTime = () => {
+      const d = $('#classDate').value, t = $('#classTime').value || '00:00';
+      if (!isDate(d)) return;
+      const len = c.end > c.start ? c.end - c.start : 36e5;
+      c.date = d;
+      c.start = new Date(`${d}T${t}:00`).getTime();
+      c.end = c.start + len;
+      $('#classBack').href = '#day/' + c.date;
+      Store.save(c);
+    };
+    $('#classDate').onchange = moveTime;
+    $('#classTime').onchange = moveTime;
+    $('#classWhen').textContent = c.eventId ? 'From your calendar' : '';
+    fill($('#classStatus'), STATUSES.map(([k, label]) => el('button', {
+      class: 'st st-' + k + (c.status === k ? ' on' : ''), 'aria-pressed': String(c.status === k),
+      onclick: () => { c.status = c.status === k ? '' : k; Store.save(c); showClassStatus(c); },
+    }, label)));
+    $('#classDelete').onclick = async () => {
+      if (!(await ask('Delete this class record? Anything you recorded or wrote here is removed (Granola keeps its own copy).', 'Delete'))) return;
+      if (Dict && Dict.active()) Dict.stop().catch(() => {});
+      Store.remove(c.id);
+      go('day/' + c.date);
+    };
+    // recording
+    const btn = $('#recBtn');
+    btn.hidden = !Dict;
+    $('#recHint').textContent = Dict
+      ? 'Your words appear below as you speak. You can fix anything by typing.'
+      : 'On iPad: tap the box below, then tap the microphone 🎤 on the keyboard and speak — iPad writes down what you say. You can also write in the box with Apple Pencil.';
+    btn.onclick = () => {
+      if (!Dict) return;
+      if (Dict.active()) { Dict.stop().catch(() => {}); return; }
+      Dict.start().catch(e => {
+        const m = { not_granted: 'The planner isn\'t allowed to use your microphone. You can change that in this page\'s Permissions menu.', dismissed: 'Recording needs your OK. Tap Start again and choose Allow.', unavailable: 'Recording isn\'t available here. Use the keyboard microphone instead.' }[e && e.code];
+        if (m) toast(m, 6000);
+      });
+    };
+    drawRecState(Dict && Dict.active() ? 'listening' : 'idle');
+    drawGranolaSend();
+    findGranolaFor(c);
+    scrollTo(0, 0);
+  }
+  function showClassStatus(c) {
+    document.querySelectorAll('#classStatus .st').forEach((b, i) => {
+      const on = c.status === STATUSES[i][0];
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  // Granola section on the class page
+  function drawGranolaSend() {
+    const c = recClass;
+    if (!c) return;
+    const sent = c.granola && c.granola.url;
+    $('#granolaSend').hidden = !EMBED;
+    $('#granolaSend').disabled = !c.transcript.trim();
+    $('#granolaSend').textContent = sent ? 'Send to Granola again' : 'Send recording to Granola';
+    fill($('#granolaSent'), sent ? el('a', { href: c.granola.url, target: '_blank', rel: 'noopener' }, 'Saved in Granola — open it ↗') : null);
+  }
+  async function findGranolaFor(c) {
+    const box = $('#granolaMatch');
+    if (!EMBED) { fill(box, el('p', { class: 'muted small' }, 'Granola notes show up when you open the planner inside Claude.')); return; }
+    fill(box, el('p', { class: 'muted small' }, 'Looking for this class in Granola…'));
+    try {
+      const list = await granolaDay(c.date);
+      if (recClass !== c) return;
+      const title = (c.title || '').toLowerCase();
+      const near = list.filter(m => !m.upcoming && (Math.abs(m.at - c.start) < 45 * 60e3 || (title && m.title.toLowerCase().includes(title))));
+      if (!near.length) { fill(box, el('p', { class: 'muted small' }, list.length ? 'No Granola note matches this class yet.' : 'No Granola notes this day yet.')); return; }
+      fill(box, el('ul', { class: 'glist' }, near.map(m => granolaItem(m))));
+    } catch (err) {
+      if (recClass !== c) return;
+      fill(box, el('p', { class: 'small' }, connectorProblem(err, 'Granola', 'your Granola notes')[0]));
+    }
+  }
+  const isoOffset = ms => {
+    const d = new Date(ms), off = -d.getTimezoneOffset(), a = Math.abs(off);
+    return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${off >= 0 ? '+' : '-'}${pad(Math.floor(a / 60))}:${pad(a % 60)}`;
+  };
+  function granolaTranscript(text) {
+    const out = [];
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      const m = /^\[(\d{1,2}:\d\d(?::\d\d)?)\]\s*(.*)$/.exec(line);
+      if (m) out.push(`Class recording [${m[1].split(':').length === 2 ? '00:' + m[1] : m[1]}]: ${m[2]}`);
+      else out.push(out.length ? line : `Class recording [00:00]: ${line}`);
+    }
+    return out.join('\n');
+  }
+  $('#granolaSend').addEventListener('click', async () => {
+    const c = recClass, msg = $('#granolaMsg');
+    if (!c || !c.transcript.trim()) return;
+    const transcript = granolaTranscript(c.transcript);
+    if (transcript.length > 100000) { msg.textContent = 'This recording is too long to send in one go. Split it into two classes.'; return; }
+    const input = { title: c.title || 'Class', meeting_started_at: isoOffset(c.start || Date.now()), transcript, meeting_platform: 'in person' };
+    if (c.end > c.start) input.meeting_ended_at = isoOffset(c.end);
+    const withEvent = c.eventId && c.calId ? { ...input, calendar_event: { provider: 'google', calendar_id: c.calId, event_id: c.eventId } } : null;
+    $('#granolaSend').disabled = true;
+    msg.textContent = 'Sending to Granola…';
+    const send = inp => granolaCall('create_meeting_note_from_transcript', inp);
+    try {
+      let res;
+      try { res = await send(withEvent || input); }
+      catch (e) { if (withEvent && /calendar_event_unavailable/.test((e && e.message) || '')) res = await send(input); else throw e; }
+      const text = typeof res === 'string' ? res : JSON.stringify(res || {});
+      const url = granolaUrl(((res && res.url) || (/https:\/\/notes\.granola\.ai\/[\w\-/]+/.exec(text) || [''])[0]));
+      c.granola = { url, at: Date.now() };
+      Store.save(c);
+      msg.textContent = 'Sent. Granola writes the summary in a minute or two.';
+      granolaCache.delete(c.date);
+    } catch (err) {
+      console.warn(err);
+      const m = (err && err.message) || '';
+      msg.textContent = /import_limit_reached/.test(m) ? 'Granola\'s daily import limit is reached. Try again tomorrow.'
+        : (err && (err.code === 'server_unavailable' || err.code === 'upstream_error')) ? 'Granola didn\'t answer, so it may or may not have saved this. Check Granola before sending again.'
+          : connectorProblem(err, 'Granola', 'Granola')[0];
+    } finally { drawGranolaSend(); }
+  });
+
   // ---------- routing ----------
   // On GitHub Pages the address bar keeps the view (#day/2026-11-07), so Back works.
   // Inside Claude the hash can only hold plain names, so the view lives in memory.
@@ -1386,6 +1714,9 @@ function send(o) {
     History.clear();
     $('.menu').open = false;
     if (view === 'note' && Store.items.has(arg)) { cleanup(arg); showNote(Store.items.get(arg)); return; }
+    if (view === 'class' && Store.items.has(arg)) { cleanup(arg); showClass(Store.items.get(arg)); return; }
+    if (recClass && Dict && Dict.active()) Dict.stop().catch(() => {});
+    recClass = null;
     cleanup();
     if (view === 'notes') showLibrary();
     else if (view === 'routines') showRoutines();
@@ -1434,6 +1765,7 @@ function send(o) {
         const ok = it && typeof it.id === 'string' && (
           (['task', 'note'].includes(it.kind) && Array.isArray(it.strokes) && isDate(it.date)) ||
           (it.kind === 'routine-day' && isDate(it.date) && it.done && typeof it.done === 'object') ||
+          (it.kind === 'class' && isDate(it.date)) ||
           (it.kind === 'config' && it.id.startsWith('cfg-')));
         if (!ok) continue;
         Store.items.set(it.id, it); Store.flush(it.id); n++;
