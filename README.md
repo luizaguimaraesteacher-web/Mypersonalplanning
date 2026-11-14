@@ -4,7 +4,10 @@ A daily planner website you write in with Apple Pencil: one page per day with yo
 
 ## How to use
 
-Open `index.html`, or publish the repo with GitHub Pages (Settings → Pages → deploy from branch) and open the link in Safari on your iPad.
+There are two ways to open it:
+
+- **As a Claude page (easiest):** https://claude.ai/artifact/PVB6p4xWCwFUvz8EHewRmv. Open it in the Claude app or in Safari on your iPad. Everything you write is saved in your Claude account, and the Calendar card reads your Google Calendar through your Claude connector, so there's nothing to set up. `artifact/pen-planner.html` is that page; rebuild it with `python3 tools/build_artifact.py` after changing `index.html`, `pen.css` or `pen.js`.
+- **On GitHub Pages:** publish the repo (Settings → Pages → deploy from branch) and open the link in Safari. Here your writing is saved in Safari on that iPad, and the calendar uses the Apps Script setup described below.
 
 - **Tasks**: write on the empty line ("Write a new task…") and a new empty line appears underneath. Tap the circle to mark a task done. **→** moves it to tomorrow, **×** deletes it.
 - **Unfinished tasks follow you**: on today's page, anything not done from earlier days shows under "Still to do from earlier days". Tick it off there, or tap **Move to today**.
