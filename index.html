@@ -116,6 +116,9 @@
       </div>
     </section>
 
+    <!-- ONE STUDY PLAN -->
+    <section id="view-plan" class="view"><div id="planPage"></div></section>
+
     <!-- ONE CLASS -->
     <section id="view-class" class="view">
       <div class="notehead">
@@ -126,6 +129,8 @@
         <button class="mini danger" id="classDelete">Delete</button>
       </div>
       <p id="classWhen" class="muted small"></p>
+
+      <section class="card evinfo" id="classEventInfo"></section>
 
       <section class="card">
         <h2>How did it go?</h2>
@@ -183,6 +188,7 @@
           <option value="dots">Dots</option>
           <option value="blank">Blank</option>
         </select>
+        <button class="mini" id="notePdf">⤓ PDF</button>
         <button class="mini danger" id="noteDelete">Delete</button>
       </div>
       <div class="page"><div id="notePage"></div></div>
@@ -194,7 +200,10 @@
       <section class="card" id="studyOverview"></section>
       <div class="libhead">
         <h1>Study notes</h1>
-        <button class="mini primary" id="libNew">+ New note for today</button>
+        <span class="head-actions">
+          <button class="mini" id="libPdf">⤓ PDF</button>
+          <button class="mini primary" id="libNew">+ New note for today</button>
+        </span>
       </div>
       <div id="subjectChips" class="chips"></div>
       <div id="libGrid" class="note-grid lib"></div>
@@ -291,6 +300,48 @@
         <span style="flex:1"></span>
         <button type="button" class="mini" id="evCancel">Cancel</button>
         <button type="button" class="mini primary" id="evSave">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- NEW / REORGANIZE STUDY PLAN -->
+  <dialog id="planDlg" class="wide">
+    <form method="dialog" class="dlg" autocomplete="off">
+      <h2 id="pmTitle">New study plan</h2>
+      <label class="small"><b>Name</b><input id="pmName" placeholder="e.g. TOEFL prep, History module 3" /></label>
+      <label class="small" id="pmMaterialLabel"><b>What do you need to study?</b>
+        <textarea id="pmMaterial" rows="6"></textarea></label>
+      <label class="small"><b>Photo of the syllabus or contents page (optional)</b><input type="file" id="pmPhoto" accept="image/*" /></label>
+      <div class="evrow">
+        <label class="small"><b>Start</b><input type="date" id="pmStart" /></label>
+        <label class="small"><b>Finish by (optional)</b><input type="date" id="pmEnd" /></label>
+        <label class="small"><b>Minutes a day</b><select id="pmMinutes"><option>30</option><option selected>60</option><option>90</option><option>120</option><option>180</option></select></label>
+      </div>
+      <fieldset class="daypick" id="pmDays"><legend class="small"><b>Study days</b></legend>
+        <label><input type="checkbox" value="1" /> Mon</label><label><input type="checkbox" value="2" /> Tue</label><label><input type="checkbox" value="3" /> Wed</label>
+        <label><input type="checkbox" value="4" /> Thu</label><label><input type="checkbox" value="5" /> Fri</label><label><input type="checkbox" value="6" /> Sat</label><label><input type="checkbox" value="0" /> Sun</label>
+      </fieldset>
+      <p id="pmMsg" class="small" role="status"></p>
+      <div id="pmPreview"></div>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="pmCancel">Cancel</button>
+        <span style="flex:1"></span>
+        <button type="button" class="mini" id="pmSpread">Spread it out myself</button>
+        <button type="button" class="mini primary" id="pmClaude">✦ Organize with Claude</button>
+        <button type="button" class="mini primary" id="pmSave" hidden>Save plan</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ADD A TOPIC -->
+  <dialog id="addItemDlg">
+    <form method="dialog" class="dlg">
+      <h2>Add a topic</h2>
+      <label class="small"><b>Topic</b><input id="addItemTitle" /></label>
+      <label class="small"><b>Day</b><input type="date" id="addItemDate" /></label>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="addItemCancel">Cancel</button>
+        <button type="button" class="mini primary" id="addItemGo">Add</button>
       </div>
     </form>
   </dialog>

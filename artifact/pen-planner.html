@@ -504,6 +504,55 @@ body.view-class #toolbar { display: none; }
 @media (max-width: 620px) { .evnotes { padding-left: 18px; } }
 .events button.what:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
+/* ---------- event page ---------- */
+.evinfo { border-top: 4px solid var(--accent); }
+.evinfo-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.evinfo-head .cdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.evinfo-title { margin: 6px 0 2px; font-size: 26px; text-wrap: balance; overflow-wrap: anywhere; }
+.evinfo-when { margin: 0 0 6px; font-weight: 600; }
+.evinfo-desc summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+.evinfo-desc p { white-space: pre-wrap; font-size: 14px; margin: 6px 0 0; overflow-wrap: anywhere; }
+.evinfo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.evinfo-actions:empty { display: none; }
+#evinfoMsg:empty { display: none; }
+/* month cells: the cell opens the day, an event opens the event */
+.mcell { cursor: pointer; }
+.mcell .mnum { border: 0; background: none; padding: 0; color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+button.me { border: 0; text-align: left; font: inherit; font-size: 11px; cursor: pointer; width: 100%; }
+button.me:hover { filter: brightness(.96); text-decoration: underline; }
+
+/* ---------- study plans area ---------- */
+.plancards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.plancard { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--line); border-top: 4px solid var(--sc); border-radius: 12px; text-decoration: none; background: var(--surface); min-width: 0; }
+.plancard strong { color: var(--sc); font-size: 16px; }
+.plancard .st { align-self: flex-start; }
+.plan-name { flex: 1; min-width: 180px; font-weight: 700; font-size: 18px; }
+.notehead input[type="color"] { width: 44px; height: 38px; padding: 2px; }
+.plan-top { border-top: 4px solid var(--sc); }
+.plan-sec h2 { font-size: 17px; }
+.overdue-sec { border-color: #f0c9cd; }
+.pitem { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.pitem:last-child { border-bottom: 0; }
+.pitem .rcheck { flex: 1; min-width: 0; border-bottom: 0; }
+.pitem.late .label { color: #ac2c37; }
+.pdate { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.pitem.late .pdate { border-color: #f0c9cd; color: #ac2c37; background: #fff5f6; }
+.pitem.ok .pdate { color: #1f7a52; border-color: #cfe8db; }
+.tgroup { border-top: 1px solid var(--line); padding: 8px 0; }
+.tgroup summary { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; font-weight: 700; font-size: 14px; }
+.tgroup[open] summary { margin-bottom: 4px; }
+dialog.wide { width: min(720px, calc(100vw - 24px)); }
+.daypick { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.daypick legend { margin-bottom: 4px; }
+.daypick label { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 4px; font-size: 14px; }
+#pmPreview:empty { display: none; }
+.pm-list { max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; background: var(--bg); }
+.pm-list .pday { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pm-list ul { margin: 2px 0 0; padding-left: 18px; font-size: 13px; }
+.pday-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+body.view-plan #toolbar { display: none; }
+.duo { align-items: start; }
+
 </style>
 <header class="top">
     <a class="brand" href="#day">✎ Pen Planner</a>
@@ -605,6 +654,9 @@ body.view-class #toolbar { display: none; }
       </div>
     </section>
 
+    <!-- ONE STUDY PLAN -->
+    <section id="view-plan" class="view"><div id="planPage"></div></section>
+
     <!-- ONE CLASS -->
     <section id="view-class" class="view">
       <div class="notehead">
@@ -615,6 +667,8 @@ body.view-class #toolbar { display: none; }
         <button class="mini danger" id="classDelete">Delete</button>
       </div>
       <p id="classWhen" class="muted small"></p>
+
+      <section class="card evinfo" id="classEventInfo"></section>
 
       <section class="card">
         <h2>How did it go?</h2>
@@ -672,6 +726,7 @@ body.view-class #toolbar { display: none; }
           <option value="dots">Dots</option>
           <option value="blank">Blank</option>
         </select>
+        <button class="mini" id="notePdf">⤓ PDF</button>
         <button class="mini danger" id="noteDelete">Delete</button>
       </div>
       <div class="page"><div id="notePage"></div></div>
@@ -683,7 +738,10 @@ body.view-class #toolbar { display: none; }
       <section class="card" id="studyOverview"></section>
       <div class="libhead">
         <h1>Study notes</h1>
-        <button class="mini primary" id="libNew">+ New note for today</button>
+        <span class="head-actions">
+          <button class="mini" id="libPdf">⤓ PDF</button>
+          <button class="mini primary" id="libNew">+ New note for today</button>
+        </span>
       </div>
       <div id="subjectChips" class="chips"></div>
       <div id="libGrid" class="note-grid lib"></div>
@@ -780,6 +838,48 @@ body.view-class #toolbar { display: none; }
         <span style="flex:1"></span>
         <button type="button" class="mini" id="evCancel">Cancel</button>
         <button type="button" class="mini primary" id="evSave">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- NEW / REORGANIZE STUDY PLAN -->
+  <dialog id="planDlg" class="wide">
+    <form method="dialog" class="dlg" autocomplete="off">
+      <h2 id="pmTitle">New study plan</h2>
+      <label class="small"><b>Name</b><input id="pmName" placeholder="e.g. TOEFL prep, History module 3" /></label>
+      <label class="small" id="pmMaterialLabel"><b>What do you need to study?</b>
+        <textarea id="pmMaterial" rows="6"></textarea></label>
+      <label class="small"><b>Photo of the syllabus or contents page (optional)</b><input type="file" id="pmPhoto" accept="image/*" /></label>
+      <div class="evrow">
+        <label class="small"><b>Start</b><input type="date" id="pmStart" /></label>
+        <label class="small"><b>Finish by (optional)</b><input type="date" id="pmEnd" /></label>
+        <label class="small"><b>Minutes a day</b><select id="pmMinutes"><option>30</option><option selected>60</option><option>90</option><option>120</option><option>180</option></select></label>
+      </div>
+      <fieldset class="daypick" id="pmDays"><legend class="small"><b>Study days</b></legend>
+        <label><input type="checkbox" value="1" /> Mon</label><label><input type="checkbox" value="2" /> Tue</label><label><input type="checkbox" value="3" /> Wed</label>
+        <label><input type="checkbox" value="4" /> Thu</label><label><input type="checkbox" value="5" /> Fri</label><label><input type="checkbox" value="6" /> Sat</label><label><input type="checkbox" value="0" /> Sun</label>
+      </fieldset>
+      <p id="pmMsg" class="small" role="status"></p>
+      <div id="pmPreview"></div>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="pmCancel">Cancel</button>
+        <span style="flex:1"></span>
+        <button type="button" class="mini" id="pmSpread">Spread it out myself</button>
+        <button type="button" class="mini primary" id="pmClaude">✦ Organize with Claude</button>
+        <button type="button" class="mini primary" id="pmSave" hidden>Save plan</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ADD A TOPIC -->
+  <dialog id="addItemDlg">
+    <form method="dialog" class="dlg">
+      <h2>Add a topic</h2>
+      <label class="small"><b>Topic</b><input id="addItemTitle" /></label>
+      <label class="small"><b>Day</b><input type="date" id="addItemDate" /></label>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="addItemCancel">Cancel</button>
+        <button type="button" class="mini primary" id="addItemGo">Add</button>
       </div>
     </form>
   </dialog>
@@ -1346,7 +1446,7 @@ body.view-class #toolbar { display: none; }
   function setView(v) {
     $('#loading').hidden = true;
     document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
-    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === (v === 'note' ? 'notes' : v)));
+    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === (v === 'note' || v === 'plan' ? 'notes' : v)));
     document.body.className = document.body.className.replace(/\bview-\S+/g, '').trim() + ' view-' + v;
     renderToolbar();
   }
@@ -1356,7 +1456,7 @@ body.view-class #toolbar { display: none; }
       if (it.id === keepId) continue;
       if (it.kind === 'task' && !it.strokes.length) Store.remove(it.id);
       if (it.kind === 'note' && !it.strokes.length && !it.subject) Store.remove(it.id);
-      if (it.kind === 'class' && !it.eventId && !it.title && !it.status && !(it.transcript || it.covered || it.homework || it.notes || '').trim()) Store.remove(it.id);
+      if (it.kind === 'class' && !it.status && !hasNotes(it) && !it.gMoved && !it.gCancelled && (it.eventId || !it.title)) Store.remove(it.id);
     }
   }
 
@@ -1468,8 +1568,8 @@ body.view-class #toolbar { display: none; }
         el('span', { class: 'plus' }, '+'), el('span', {}, 'New study note')));
   }
 
-  function newNote(date, subject) {
-    const n = { id: uid(), kind: 'note', date, subject: subject || '', paper: lsGet('pp-paper', 'lines'), h: NOTE_H, strokes: [], created: Date.now() };
+  function newNote(date, subject, planId) {
+    const n = { id: uid(), kind: 'note', date, subject: subject || '', planId: planId || '', paper: lsGet('pp-paper', 'lines'), h: NOTE_H, strokes: [], created: Date.now() };
     Store.save(n);
     go('note/' + n.id);
   }
@@ -1497,6 +1597,7 @@ body.view-class #toolbar { display: none; }
     wrap.style.height = '';
     const surface = new Surface(wrap, n, { paper: () => n.paper, grow: true, onChange: () => Store.save(n) });
     paper.onchange = () => { n.paper = paper.value; lsSet('pp-paper', n.paper); Store.save(n); surface.render(); };
+    $('#notePdf').onclick = () => { Store.flushAll(); notesToPdf([n], n.subject || 'Study note'); };
     $('#noteDelete').onclick = async () => {
       if (!(await ask('Delete this study note?', 'Delete'))) return;
       Store.remove(n.id);
@@ -1524,6 +1625,8 @@ body.view-class #toolbar { display: none; }
     const list = all.filter(n => !state.filter || n.subject === state.filter)
       .sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
     fill($('#libGrid'), ...list.map(n => noteCard(n, true)));
+    $('#libPdf').hidden = !list.length;
+    $('#libPdf').onclick = () => notesToPdf(list, state.filter || 'Study notes');
     $('#libEmpty').hidden = list.length > 0;
   }
   $('#libNew').addEventListener('click', () => newNote(today()));
@@ -1696,7 +1799,6 @@ body.view-class #toolbar { display: none; }
     const end = addDays(dates[dates.length - 1], 1);
 
     const tasks = Store.list('task').filter(x => x.strokes.length && x.date >= start && x.date < end);
-    const studyDoneNow = studyDone();
     const notes = Store.list('note').filter(n => (n.strokes.length || n.subject) && n.date >= start && n.date < end);
     const R = routines();
     const pip = (which, d) => {
@@ -1712,7 +1814,7 @@ body.view-class #toolbar { display: none; }
         const dayTasks = tasks.filter(x => x.date === d);
         const open = dayTasks.filter(x => !x.done).length;
         const nNotes = notes.filter(n => n.date === d).length;
-        const sItems = studyOn(d), sDone = sItems.filter(it => studyDoneNow[it.id]).length;
+        const sItems = planItemsOn(d).map(r => r.it), sDone = sItems.filter(it => it.done).length;
         const evBox = el('span', { class: 'mev' });
         const marks = el('span', { class: 'mmarks' },
           dayTasks.length ? el('span', { class: 'mt' + (open ? '' : ' alldone'), title: open ? `${open} task${open === 1 ? '' : 's'} to do` : 'All tasks done' },
@@ -1720,11 +1822,10 @@ body.view-class #toolbar { display: none; }
           nNotes ? el('span', { class: 'mn', title: `${nNotes} study note${nNotes === 1 ? '' : 's'}` }, `${nNotes} note${nNotes === 1 ? '' : 's'}`) : null,
           sItems.length ? el('span', { class: 'ms' + (sDone === sItems.length ? ' alldone' : ''), title: `Study plan: ${sDone} of ${sItems.length} done` }, sDone === sItems.length ? '✓ study' : `${sItems.length - sDone} study`) : null,
           d <= t ? el('span', { class: 'rps' }, pip('morning', d), pip('night', d)) : null);
-        const cell = el('button', {
+        const cell = el('div', {
           class: 'mcell' + (d.slice(0, 7) !== month ? ' out' : '') + (d === t ? ' today' : ''),
-          'aria-label': fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }),
-          onclick: () => go('day/' + d),
-        }, el('span', { class: 'mnum' }, String(parse(d).getDate())), evBox, marks);
+          onclick: e => { if (!e.target.closest('.me')) go('day/' + d); },
+        }, el('button', { class: 'mnum', 'aria-label': 'Open ' + fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }) }, String(parse(d).getDate())), evBox, marks);
         cells.set(d, evBox);
         return cell;
       }));
@@ -1750,7 +1851,8 @@ body.view-class #toolbar { display: none; }
       }
       for (const [d, box] of cells) {
         const list = byDay.get(d) || [];
-        fill(box, ...list.slice(0, 3).map(ev => el('span', { class: 'me' + (ev.allDay ? ' allday' : ''), style: `--ec:${ev.color || CAL_COLORS[0]}` },
+        fill(box, ...list.slice(0, 3).map(ev => el('button', { class: 'me' + (ev.allDay ? ' allday' : ''), style: `--ec:${ev.color || CAL_COLORS[0]}`,
+            title: ev.title || '', onclick: () => { if (!ev.allDay) openClassFor(ev); else if (EMBED && ev.id) openEventEditor(ev); else go('day/' + iso(new Date(ev.start))); } },
           ev.allDay ? '' : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), ev.title || '(No title)')),
           list.length > 3 ? el('span', { class: 'more' }, `+${list.length - 3} more`) : null,
           list.length ? el('span', { class: 'mcount', 'aria-hidden': 'true' }, String(list.length)) : null);
@@ -2020,26 +2122,43 @@ function send(o) {
       }
       $('#eventDlg').close();
       toast(ev ? 'Event updated' : 'Event added to Google Calendar');
+      if (ev && recClass && recClass.eventId === ev.id && document.body.classList.contains('view-class')) {
+        const c = recClass, start = allDay ? parse(date).getTime() : new Date(`${date}T${$('#evStart').value}:00`).getTime();
+        Object.assign(c, { gTitle: title.replace(/^Cancelled: /, ''), location: input.location, gDescription: input.description });
+        if (!c.gMoved) { c.start = start; c.end = allDay ? start + 864e5 : new Date(`${date}T${$('#evEnd').value}:00`).getTime(); c.date = date; }
+        else c.gMovedTo = start;
+        Store.save(c);
+        renderEventInfo(c);
+      }
       afterEventChange(date);
     } catch (err) {
       console.warn(err);
       msg.textContent = eventProblem(err);
     } finally { $('#evSave').disabled = false; }
   });
-  $('#evDelete').addEventListener('click', async () => {
+  $('#evDelete').addEventListener('click', () => {
     const ev = editingEvent;
     if (!ev) return;
     $('#eventDlg').close();
-    if (!(await ask(`Delete "${ev.title || 'this event'}" from Google Calendar?`, 'Delete'))) { $('#eventDlg').showModal(); return; }
+    deleteEventFlow(ev, true);
+  });
+  async function deleteEventFlow(ev, reopen) {
+    if (!(await ask(`Delete "${ev.title || 'this event'}" from Google Calendar?`, 'Delete'))) { if (reopen) $('#eventDlg').showModal(); return; }
     try {
       await calCall('delete_event', { eventId: ev.id, ...(ev.calId ? { calendarId: ev.calId } : {}) });
       toast('Event deleted');
+      if (recClass && recClass.eventId === ev.id && document.body.classList.contains('view-class')) {
+        const c = recClass;
+        c.eventId = ''; c.calId = '';
+        Store.save(c);
+        go('day/' + c.date);
+      }
       afterEventChange(iso(new Date(ev.start)));
     } catch (err) {
       console.warn(err);
       toast(eventProblem(err), 7000);
     }
-  });
+  }
 
   // ---- move a task to any day ----
   let onMovePick = null;
@@ -2134,9 +2253,10 @@ function send(o) {
       return el('li', { class: (!ev.allDay && ev.end && ev.end < now ? 'past' : '') + (canEdit ? ' editable' : '') },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, ev.allDay ? 'All day' : timeOf(ev.start)),
-        canEdit ? el('button', { class: 'what', title: 'Edit this event', onclick: () => openEventEditor(ev) }, what) : el('span', { class: 'what' }, what),
-        ev.allDay ? null : el('button', { class: 'recbtn' + (rec ? ' done' : ''), title: rec ? 'Open this class record' : 'Record this class', onclick: () => openClassFor(ev) },
-          rec ? (rec.status ? statusLabel(rec.status) : 'Notes ✓') : '● Record'),
+        !ev.allDay ? el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what)
+          : canEdit ? el('button', { class: 'what', title: 'Edit this event', onclick: () => openEventEditor(ev) }, what) : el('span', { class: 'what' }, what),
+        ev.allDay ? null : el('button', { class: 'recbtn' + (rec && (rec.status || hasNotes(rec)) ? ' done' : ''), title: 'Open this event', onclick: () => openClassFor(ev) },
+          rec && rec.status ? statusLabel(rec.status) : rec && hasNotes(rec) ? 'Notes ✓' : 'Open ›'),
         ev.allDay ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
     })));
@@ -2292,16 +2412,28 @@ function send(o) {
   const STATUSES = [['happened', 'Happened'], ['noshow', 'Student missed'], ['cancelled', 'Cancelled'], ['moved', 'Rescheduled']];
   const statusLabel = s => (STATUSES.find(x => x[0] === s) || [, ''])[1];
 
+  const hasNotes = c => !!(c && ((c.covered || c.homework || c.notes || c.transcript || '').trim() || (c.granola && c.granola.url)));
   function openClassFor(ev) {
     const id = classKey(ev);
-    if (!Store.items.has(id)) {
-      Store.save({
-        id, kind: 'class', date: iso(new Date(ev.start)), title: ev.title || '', start: ev.start, end: ev.end || 0,
-        eventId: ev.id || '', calId: ev.calId || '', gTitle: ev.title || '', status: '', transcript: '', covered: '', homework: '', notes: '', created: Date.now(),
-      });
+    let c = Store.items.get(id);
+    if (!c) {
+      c = { id, kind: 'class', date: iso(new Date(ev.start)), title: ev.title || '', start: ev.start, end: ev.end || 0,
+        eventId: ev.id || '', calId: ev.calId || '', gTitle: ev.title || '', status: '', transcript: '', covered: '', homework: '', notes: '', created: Date.now() };
     }
+    // keep the Google details up to date (a moved class keeps its original time here)
+    Object.assign(c, { calId: ev.calId || c.calId || '', location: ev.location || '', gDescription: ev.description || '', allDayEv: false });
+    if (!c.gCancelled) c.gTitle = ev.title || c.gTitle;
+    if (!c.gMoved) { c.start = ev.start; c.end = ev.end || c.end; c.date = iso(new Date(ev.start)); }
+    Store.save(c);
     go('class/' + id);
   }
+  // The Google event behind a class, as the editor needs it
+  const eventOf = c => ({
+    id: c.eventId, calId: c.calId, title: c.gCancelled ? 'Cancelled: ' + (c.gTitle || c.title) : (c.gTitle || c.title), allDay: false,
+    start: c.gMoved && c.gMovedTo ? c.gMovedTo : c.start,
+    end: (c.gMoved && c.gMovedTo ? c.gMovedTo : c.start) + (c.end > c.start ? c.end - c.start : 36e5),
+    location: c.location || '', description: c.gDescription || '',
+  });
   function newClass(date) {
     const now = new Date(), d = parse(date);
     d.setHours(now.getHours(), now.getMinutes() - now.getMinutes() % 5, 0, 0);
@@ -2540,6 +2672,7 @@ function send(o) {
         if (m) toast(m, 6000);
       });
     };
+    renderEventInfo(c);
     showClassStatus(c);
     drawRecState(Dict && Dict.active() ? 'listening' : 'idle');
     drawGranolaSend();
@@ -2547,6 +2680,52 @@ function send(o) {
     renderLastClass(c);
     scrollTo(0, 0);
   }
+  function renderEventInfo(c) {
+    const box = $('#classEventInfo');
+    const linked = !!c.eventId;
+    const cal = (Cals.list || []).find(x => x.id === c.calId);
+    const when = c.gMoved && c.gMovedTo ? c.gMovedTo : c.start;
+    const end = when + (c.end > c.start ? c.end - c.start : 36e5);
+    const desc = (c.gDescription || '').replace(/\n*— Class notes \(Pen Planner\) —[\s\S]*$/, '').trim();
+    fill(box,
+      el('div', { class: 'evinfo-head' },
+        el('span', { class: 'cdot', style: `background:${(cal && cal.color) || 'var(--accent)'}` }),
+        el('span', { class: 'muted small' }, linked ? (cal ? cal.label : 'Google Calendar') : 'Not on Google Calendar'),
+        c.gCancelled ? el('span', { class: 'st st-cancelled' }, 'Cancelled') : null,
+        c.gMoved ? el('span', { class: 'st st-moved' }, 'Rescheduled') : null),
+      el('h1', { class: 'evinfo-title' }, (c.gTitle || c.title || 'Class')),
+      el('p', { class: 'evinfo-when' }, fmt(iso(new Date(when)), { weekday: 'long', month: 'long', day: 'numeric' }) + ` · ${timeOf(when)} – ${timeOf(end)}`,
+        c.gMoved ? el('span', { class: 'muted small' }, ` (was ${dayTime(c.start)})`) : null),
+      c.location ? el('p', { class: 'small' }, '📍 ' + c.location) : null,
+      desc ? el('details', { class: 'evinfo-desc' }, el('summary', {}, 'Event description'), el('p', {}, desc)) : null,
+      el('div', { class: 'evinfo-actions' },
+        linked && EMBED ? el('button', { class: 'mini', onclick: () => openEventEditor(eventOf(c)) }, 'Edit event') : null,
+        linked && EMBED ? el('button', { class: 'mini', onclick: () => saveNotesToGoogle(c) }, 'Save notes to Google Calendar') : null,
+        linked && EMBED ? el('button', { class: 'mini danger', onclick: () => deleteEventFlow(eventOf(c), false) }, 'Delete event') : null),
+      el('p', { id: 'evinfoMsg', class: 'small muted' }));
+  }
+  // Writes the class notes into the Google event's description (keeps what was there, replaces an older copy)
+  async function saveNotesToGoogle(c) {
+    const msg = $('#evinfoMsg');
+    const lines = [['What we covered', c.covered], ['Homework', c.homework], ['Notes', c.notes]].filter(([, v]) => v && v.trim());
+    if (c.status) lines.unshift(['Status', statusLabel(c.status)]);
+    if (c.granola && c.granola.url) lines.push(['Granola', c.granola.url]);
+    if (!lines.length) { msg.textContent = 'Write what you covered, the homework or a note first.'; return; }
+    const base = (c.gDescription || '').replace(/\n*— Class notes \(Pen Planner\) —[\s\S]*$/, '').trim();
+    const description = (base ? base + '\n\n' : '') + '— Class notes (Pen Planner) —\n' + lines.map(([k, v]) => `${k}: ${v.trim()}`).join('\n');
+    msg.textContent = 'Saving to Google Calendar…';
+    try {
+      await calCall('update_event', { eventId: c.eventId, notificationLevel: 'NONE', description, ...(c.calId ? { calendarId: c.calId } : {}) });
+      c.gDescription = description;
+      Store.save(c);
+      msg.textContent = 'Saved in the Google Calendar event. Guests aren\'t emailed.';
+      try { const mcp = await window.claude.use('mcp'); if (mcp) await mcp.invalidate('Google Calendar'); } catch { /* nothing cached */ }
+    } catch (err) {
+      console.warn(err);
+      msg.textContent = eventProblem(err);
+    }
+  }
+
   function showClassStatus(c) {
     document.querySelectorAll('#classStatus .st').forEach((b, i) => {
       const on = c.status === STATUSES[i][0];
@@ -2561,6 +2740,7 @@ function send(o) {
       $('#moveTime').value = hm(at);
     }
     drawGcalLine(c);
+    if ($('#classEventInfo').isConnected) renderEventInfo(c);
   }
 
   // Keep Google Calendar in step with the class, like Hello Pro Hub does. Guests are never emailed.
@@ -2597,7 +2777,7 @@ function send(o) {
       if (want === 'cancel' && !c.gCancelled) { await calCall('update_event', { ...base, summary: 'Cancelled: ' + title, availability: 'AVAILABILITY_FREE' }); c.gCancelled = true; Store.save(c); }
       if (want === 'move' && c.gMovedTo !== c.newStart) { await calCall('update_event', { ...base, ...times(c.newStart) }); c.gMoved = true; c.gMovedTo = c.newStart; Store.save(c); }
       try { const mcp = await window.claude.use('mcp'); if (mcp) await mcp.invalidate('Google Calendar'); } catch { /* nothing cached */ }
-      if (recClass === c) drawGcalLine(c);
+      if (recClass === c) { drawGcalLine(c); renderEventInfo(c); }
     } catch (err) {
       console.warn(err);
       if (recClass === c) drawGcalLine(c, 'Google Calendar didn\'t update (your class notes are saved). ' + eventProblem(err), true);
@@ -2761,16 +2941,6 @@ function send(o) {
     return { sched, weeks, from, built: Date.now() };
   }
 
-  function replanStudies(from) {
-    const plan = studyPlan();
-    if (!plan) return;
-    const prev = studySched();
-    const next = buildStudySchedule(plan, from, studyDone());
-    // keep the dates of things already done
-    for (const [id, d] of Object.entries(prev.sched || {})) if (studyDone()[id]) next.sched[id] = d;
-    Config.set('studySched', next);
-  }
-
   // Seed: the plan that ships with this page, the first time it opens
   function seedStudyPlan() {
     if (studyPlan() || Config.get('studySeeded', false)) return;
@@ -2784,117 +2954,437 @@ function send(o) {
     } catch (e) { console.warn(e); }
   }
 
-  const courseOf = (plan, c) => plan && plan[c] ? plan[c] : { name: c, color: '#5b6778' };
-  function studyOn(date) {
-    const plan = studyPlan();
-    if (!plan) return [];
-    const s = studySched().sched || {};
-    return studyItems(plan).filter(it => s[it.id] === date);
-  }
-  function studyBehind() {
-    const plan = studyPlan(), s = studySched().sched || {}, done = studyDone(), t = today();
-    return plan ? studyItems(plan).filter(it => !done[it.id] && s[it.id] && s[it.id] < t) : [];
-  }
-  function toggleStudy(id) {
-    const done = { ...studyDone() };
-    if (done[id]) delete done[id]; else done[id] = today();
-    Config.set('studyDone', done);
-  }
-  function studyProgress(plan, course) {
-    const all = studyItems(plan).filter(it => it.course === course), done = studyDone(), s = studySched().sched || {};
-    const n = all.filter(it => done[it.id]).length;
-    const next = all.find(it => !done[it.id]);
-    const last = all.map(it => s[it.id]).filter(Boolean).sort().pop();
-    return { n, total: all.length, next, nextDate: next ? s[next.id] : null, end: last };
+  // ---------- study plans (each plan on its own) ----------
+  // A plan: { id, kind:'plan', name, color, goal, days:[weekday numbers], items:[{id,title,group,date,done}], extras:[{id,title,week,done}] }
+  // The Nov–Jan plan's two courses keep their own rules (rule:'novjan'); other plans move forward day by day.
+  const PLAN_COLORS = ['#2f6fd6', '#c2571a', '#9b3fb5', '#0e8a7a', '#b22133', '#5b4b9a', '#8a5c17'];
+  const plans = () => Store.list('plan').filter(p => !p.archived).sort((a, b) => (a.created || 0) - (b.created || 0));
+  const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function migrateStudy() {
+    const def = studyPlan();
+    if (!def || Config.get('studyMigrated', false)) return;
+    const sched = studySched(), done = studyDone();
+    const mk = (course, id, n) => ({
+      id, kind: 'plan', date: def.start || today(), created: Date.now() + n, name: def[course].name, color: def[course].color,
+      goal: def.name || '', rule: 'novjan', course, days: course === 'gp' ? [1, 2, 3, 4, 5] : [1, 2, 3, 4, 5, 6],
+      items: studyItems(def).filter(it => it.course === course).map(it => ({
+        id: it.id, title: it.title + (it.closing ? ' (fechamento)' : ''), group: it.group, date: (sched.sched || {})[it.id] || '', done: done[it.id] || null,
+      })),
+      extras: course === 'gp' ? studyExtras(def).map(x => ({ id: x.id, title: x.name, week: (sched.weeks || {})[x.id] || '', done: done[x.id] || null })) : [],
+    });
+    if (def.gp) Store.save(mk('gp', 'plan-novjan-gp', 0));
+    if (def.pg) Store.save(mk('pg', 'plan-novjan-pg', 1));
+    Config.set('studyMigrated', true);
   }
 
-  // Day card
-  function renderStudyCard() {
-    const card = $('#studyCard'), date = state.date, plan = studyPlan();
-    if (!plan) { card.hidden = true; return; }
-    card.hidden = false;
-    const done = studyDone(), items = studyOn(date);
-    const behind = date === today() ? studyBehind() : [];
-    const hol = (plan.holidays || {})[date];
-    const groups = [];
-    for (const it of items) {
-      const last = groups[groups.length - 1];
-      if (last && last.course === it.course && last.group === it.group) last.items.push(it);
-      else groups.push({ course: it.course, group: it.group, items: [it] });
+  function planStats(p) {
+    const t = today(), items = p.items || [];
+    const n = items.filter(i => i.done).length;
+    const next = items.filter(i => !i.done).sort((a, b) => (a.date || '9').localeCompare(b.date || '9'))[0];
+    const dates = items.map(i => i.date).filter(Boolean).sort();
+    return { n, total: items.length, next, end: dates[dates.length - 1], behind: items.filter(i => !i.done && i.date && i.date < t).length };
+  }
+  function planItemsOn(date) {
+    const out = [];
+    for (const p of plans()) for (const it of p.items || []) if (it.date === date) out.push({ p, it });
+    return out;
+  }
+  function toggleItem(p, it) { it.done = it.done ? null : today(); Store.save(p); }
+
+  // Replan: the Nov–Jan courses with their rules; any other plan keeps its order and day groups, moved onto its study days from `from`
+  function replanPlan(p, from) {
+    if (p.rule === 'novjan') {
+      const def = studyPlan();
+      if (!def) return;
+      const pair = plans().filter(x => x.rule === 'novjan');
+      const done = {};
+      pair.forEach(x => { (x.items || []).forEach(i => { if (i.done) done[i.id] = i.done; }); (x.extras || []).forEach(i => { if (i.done) done[i.id] = i.done; }); });
+      const r = buildStudySchedule(def, from, done);
+      pair.forEach(x => {
+        (x.items || []).forEach(i => { if (!i.done && r.sched[i.id]) i.date = r.sched[i.id]; });
+        (x.extras || []).forEach(i => { if (!i.done && r.weeks[i.id]) i.week = r.weeks[i.id]; });
+        Store.save(x);
+      });
+      return;
     }
-    const weekExtras = studyExtras(plan).filter(x => (studySched().weeks || {})[x.id] === mondayOf(date) && !done[x.id]);
-    const check = it => el('li', {}, el('button', {
-      class: 'rcheck' + (done[it.id] ? ' on' : ''), 'aria-pressed': String(!!done[it.id]),
-      onclick: () => { toggleStudy(it.id); renderStudyCard(); },
-    }, el('span', { class: 'box' }), el('span', { class: 'label' }, it.title, it.closing ? el('small', {}, ' (fechamento)') : null)));
-    const total = items.length, nDone = items.filter(it => done[it.id]).length;
+    const days = (p.days && p.days.length ? p.days : [1, 2, 3, 4, 5]);
+    const left = (p.items || []).filter(i => !i.done).sort((a, b) => (a.date || '9').localeCompare(b.date || '9'));
+    const groups = [];
+    for (const it of left) { const g = groups[groups.length - 1]; if (g && g.key === (it.date || '') && it.date) g.items.push(it); else groups.push({ key: it.date || '', items: [it] }); }
+    let d = from;
+    for (const g of groups) {
+      let guard = 0;
+      while (!days.includes(dow(d)) && guard++ < 14) d = addDays(d, 1);
+      g.items.forEach(i => { i.date = d; });
+      d = addDays(d, 1);
+    }
+    Store.save(p);
+  }
+  function replanAll(from) { const done = new Set(); for (const p of plans()) { if (p.rule === 'novjan' && done.has('novjan')) continue; if (p.rule === 'novjan') done.add('novjan'); if (planStats(p).behind || p.rule === 'novjan') replanPlan(p, from); } }
+
+  // ---- day card ----
+  function renderStudyCard() {
+    const card = $('#studyCard'), date = state.date, all = plans();
+    if (!all.length) { card.hidden = true; return; }
+    card.hidden = false;
+    const rows = planItemsOn(date);
+    const behind = date === today() ? all.reduce((a, p) => a + planStats(p).behind, 0) : 0;
+    const groups = [];
+    for (const { p, it } of rows) {
+      const last = groups[groups.length - 1];
+      if (last && last.p === p && last.group === (it.group || '')) last.items.push(it); else groups.push({ p, group: it.group || '', items: [it] });
+    }
+    const extras = [];
+    all.forEach(p => (p.extras || []).forEach(x => { if (x.week === mondayOf(date) && !x.done) extras.push({ p, x }); }));
+    const check = (p, it) => el('li', {}, el('button', {
+      class: 'rcheck' + (it.done ? ' on' : ''), 'aria-pressed': String(!!it.done),
+      onclick: () => { toggleItem(p, it); renderStudyCard(); },
+    }, el('span', { class: 'box' }), el('span', { class: 'label' }, it.title)));
+    const hol = (studyPlan() && studyPlan().holidays || {})[date];
+    const nDone = rows.filter(r => r.it.done).length;
     fill(card,
       el('div', { class: 'card-head' },
         el('h2', {}, el('span', { class: 'dot', style: 'background:#9b3fb5' }), 'Study plan'),
-        el('span', { class: 'muted' }, total ? `${nDone} of ${total}` : '')),
-      behind.length ? el('div', { class: 'behind' },
-        el('span', {}, `${behind.length} item${behind.length === 1 ? '' : 's'} from earlier days ${behind.length === 1 ? 'isn\'t' : 'aren\'t'} done.`),
-        el('button', { class: 'mini primary', onclick: () => { replanStudies(today()); renderStudyCard(); toast('Plan moved forward from today'); } }, 'Replan from today')) : null,
-      groups.length ? groups.map(g => {
-        const c = courseOf(plan, g.course);
-        return el('div', { class: 'sgroup', style: `--sc:${c.color}` },
-          el('div', { class: 'sghead' },
-            el('span', { class: 'sgname' }, c.name), el('span', { class: 'muted small' }, g.group),
-            el('span', { class: 'head-actions' },
-              el('button', { class: 'mini', onclick: () => newNote(date, c.name) }, '+ Note'),
-              el('button', { class: 'mini', onclick: () => moveStudyGroup(g.items) }, 'Move…'))),
-          el('ul', { class: 'routine' }, g.items.map(check)));
-      }) : el('p', { class: 'muted small' }, hol ? `${hol}: no studying planned.` : dow(date) === 0 ? 'Sunday: free.' : 'Nothing planned for this day.'),
-      weekExtras.length ? el('div', { class: 'sgroup extra', style: `--sc:${courseOf(plan, 'gp').color}` },
-        el('div', { class: 'sghead' }, el('span', { class: 'sgname' }, 'This week, when you can'), el('span', { class: 'muted small' }, courseOf(plan, 'gp').name)),
-        el('ul', { class: 'routine' }, weekExtras.map(x => check({ id: x.id, title: x.name })))) : null);
+        el('span', { class: 'head-actions' }, rows.length ? el('span', { class: 'muted' }, `${nDone} of ${rows.length}`) : null,
+          el('a', { class: 'mini', href: '#notes' }, 'All plans ›'))),
+      behind ? el('div', { class: 'behind' },
+        el('span', {}, `${behind} item${behind === 1 ? '' : 's'} from earlier days ${behind === 1 ? 'isn\'t' : 'aren\'t'} done.`),
+        el('button', { class: 'mini primary', onclick: () => { replanAll(today()); renderStudyCard(); toast('Moved forward from today'); } }, 'Replan from today')) : null,
+      groups.length ? groups.map(g => el('div', { class: 'sgroup', style: `--sc:${g.p.color}` },
+        el('div', { class: 'sghead' },
+          el('a', { class: 'sgname', href: '#plan/' + g.p.id }, g.p.name), g.group ? el('span', { class: 'muted small' }, g.group) : null,
+          el('span', { class: 'head-actions' },
+            el('button', { class: 'mini', onclick: () => newNote(date, g.p.name, g.p.id) }, '+ Note'),
+            el('button', { class: 'mini', onclick: () => movePlanItems(g.p, g.items, renderStudyCard) }, 'Move…'))),
+        el('ul', { class: 'routine' }, g.items.map(it => check(g.p, it)))))
+        : el('p', { class: 'muted small' }, hol ? `${hol}: no studying planned.` : 'Nothing planned for this day.'),
+      extras.length ? el('div', { class: 'sgroup extra', style: `--sc:${extras[0].p.color}` },
+        el('div', { class: 'sghead' }, el('span', { class: 'sgname' }, 'This week, when you can')),
+        el('ul', { class: 'routine' }, extras.map(({ p, x }) => check(p, x)))) : null);
   }
-  function moveStudyGroup(items) {
-    openMove(addDays(state.date, 1), date => {
-      const cur = studySched();
-      const next = { ...cur, sched: { ...cur.sched } };
-      items.forEach(it => { next.sched[it.id] = date; });
-      Config.set('studySched', next);
-      renderStudyCard();
+  function movePlanItems(p, items, after) {
+    openMove(addDays(items[0].date || today(), 1), date => {
+      items.forEach(it => { it.date = date; });
+      Store.save(p);
+      after();
       toast('Moved to ' + fmt(date, { weekday: 'long', month: 'short', day: 'numeric' }));
     });
   }
 
-  // Overview at the top of the Studies tab
+  // ---- Studies tab: one card per plan ----
   function renderStudyOverview() {
-    const box = $('#studyOverview'), plan = studyPlan();
-    if (!plan) { fill(box); return; }
-    const done = studyDone(), s = studySched().sched || {}, t = today();
-    const behind = studyBehind();
-    const course = c => {
-      const p = studyProgress(plan, c), info = courseOf(plan, c);
-      return el('div', { class: 'scourse', style: `--sc:${info.color}` },
-        el('strong', {}, info.name),
-        el('div', { class: 'sbar' }, el('span', { style: `width:${p.total ? (p.n / p.total * 100).toFixed(1) : 0}%` })),
-        el('span', { class: 'muted small' }, `${p.n} of ${p.total} done` + (p.end ? ` · ends ${fmt(p.end, { day: 'numeric', month: 'short' })}` : '')),
-        p.next ? el('span', { class: 'small' }, 'Next: ', el('b', {}, p.next.title), p.nextDate ? ` · ${fmt(p.nextDate, { weekday: 'short', day: 'numeric', month: 'short' })}` : '') : el('span', { class: 'small' }, 'Finished!'));
-    };
-    // schedule list by week
-    const byDate = new Map();
-    for (const it of studyItems(plan)) { const d = s[it.id]; if (!d) continue; if (!byDate.has(d)) byDate.set(d, []); byDate.get(d).push(it); }
-    const dates = [...byDate.keys()].sort();
-    const weeksList = new Map();
-    for (const d of dates) { const w = mondayOf(d); if (!weeksList.has(w)) weeksList.set(w, []); weeksList.get(w).push(d); }
+    const box = $('#studyOverview'), all = plans();
     fill(box,
-      el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:#9b3fb5' }), plan.name || 'Study plan'),
-        el('button', { class: 'mini', onclick: () => { replanStudies(t); renderStudyOverview(); toast('Plan moved forward from today'); } }, 'Replan from today')),
-      el('div', { class: 'scourses' }, ['gp', 'pg'].filter(c => plan[c]).map(course)),
-      behind.length ? el('p', { class: 'behind' }, `${behind.length} item${behind.length === 1 ? '' : 's'} from earlier days not done yet. Replan from today moves everything left forward.`) : null,
-      el('details', { class: 'lc-more' }, el('summary', {}, 'Full schedule'),
-        [...weeksList].map(([w, ds]) => el('div', { class: 'sweek' },
-          el('h4', {}, 'Week of ' + fmt(w, { day: 'numeric', month: 'short' })),
-          ds.map(d => el('a', { class: 'sday' + (d === t ? ' today' : ''), href: '#day/' + d },
-            el('span', { class: 'when' }, fmt(d, { weekday: 'short', day: 'numeric' })),
-            el('span', {}, byDate.get(d).map(it => {
-              const ok = done[it.id];
-              return el('span', { class: 'sitem' + (ok ? ' ok' : ''), style: `--sc:${courseOf(plan, it.course).color}` }, (ok ? '✓ ' : '') + it.title);
-            }))))))));
+      el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:#9b3fb5' }), 'Study plans'),
+        el('button', { class: 'mini primary', onclick: () => openPlanMaker() }, '+ New study plan')),
+      all.length ? el('div', { class: 'plancards' }, all.map(p => {
+        const s = planStats(p);
+        return el('a', { class: 'plancard', href: '#plan/' + p.id, style: `--sc:${p.color}` },
+          el('strong', {}, p.name),
+          p.goal ? el('span', { class: 'muted small' }, p.goal) : null,
+          el('div', { class: 'sbar' }, el('span', { style: `width:${s.total ? (s.n / s.total * 100).toFixed(1) : 0}%` })),
+          el('span', { class: 'small' }, `${s.n} of ${s.total} done` + (s.end ? ` · ends ${fmt(s.end, { day: 'numeric', month: 'short' })}` : '')),
+          s.next ? el('span', { class: 'small muted' }, 'Next: ' + s.next.title + (s.next.date ? ' · ' + fmt(s.next.date, { weekday: 'short', day: 'numeric', month: 'short' }) : '')) : el('span', { class: 'small' }, 'Finished!'),
+          s.behind ? el('span', { class: 'st st-noshow' }, `${s.behind} behind`) : null);
+      })) : el('p', { class: 'muted small' }, 'No study plans yet. Tap New study plan, paste or photograph what you need to study, and Claude organizes it into days.'));
   }
+
+  // ---- one plan: overdue, next topics, all topics, notes ----
+  const planNotes = p => Store.list('note').filter(n => (n.strokes.length || n.subject) && (n.planId === p.id || (n.subject || '').trim().toLowerCase() === p.name.trim().toLowerCase()))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
+  function showPlan(p) {
+    unmountAll();
+    setView('plan');
+    const box = $('#planPage');
+    const s = planStats(p), t = today();
+    const items = p.items || [];
+    const overdue = items.filter(i => !i.done && i.date && i.date < t).sort((a, b) => a.date.localeCompare(b.date));
+    const next = items.filter(i => !i.done && (!i.date || i.date >= t)).sort((a, b) => (a.date || '9').localeCompare(b.date || '9')).slice(0, 8);
+    const groups = new Map();
+    items.forEach(i => { const g = i.group || 'Topics'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(i); });
+    const notes = planNotes(p);
+    const nameIn = el('input', { class: 'plan-name', value: p.name, 'aria-label': 'Plan name' });
+    nameIn.oninput = () => {
+      const old = p.name;
+      p.name = nameIn.value.trim() || 'Study plan';
+      // notes that used the old name follow the plan
+      Store.list('note').forEach(n => { if ((n.subject || '').trim().toLowerCase() === old.trim().toLowerCase()) { n.subject = p.name; n.planId = p.id; Store.save(n); } });
+      Store.save(p);
+    };
+    const dateLabel = it => it.date ? fmt(it.date, { weekday: 'short', day: 'numeric', month: 'short' }) : 'no date';
+    const itemRow = (it, opts = {}) => el('li', { class: 'pitem' + (it.done ? ' ok' : '') + (!it.done && it.date && it.date < t ? ' late' : '') },
+      el('button', { class: 'rcheck' + (it.done ? ' on' : ''), 'aria-pressed': String(!!it.done), onclick: () => { toggleItem(p, it); showPlan(p); } },
+        el('span', { class: 'box' }), el('span', { class: 'label' }, it.title, opts.group && it.group ? el('small', {}, ' · ' + it.group) : null)),
+      el('button', { class: 'pdate', title: 'Change the day', onclick: () => movePlanItems(p, [it], () => showPlan(p)) }, it.done ? '✓ ' + fmt(it.done, { day: 'numeric', month: 'short' }) : dateLabel(it)),
+      opts.remove ? el('button', { class: 'icon-btn sm', title: 'Remove', 'aria-label': 'Remove ' + it.title, onclick: async () => { if (await ask(`Remove "${it.title}" from the plan?`, 'Remove')) { p.items = p.items.filter(x => x !== it); Store.save(p); showPlan(p); } } }, '×') : null);
+    fill(box,
+      el('div', { class: 'notehead' },
+        el('a', { class: 'mini', href: '#notes' }, '‹ Studies'),
+        nameIn,
+        el('input', { type: 'color', value: p.color, 'aria-label': 'Colour', oninput: e => { p.color = e.target.value; Store.save(p); } }),
+        el('button', { class: 'mini danger', onclick: async () => { if (await ask(`Delete the plan "${p.name}"? Its study notes stay.`, 'Delete')) { Store.remove(p.id); go('notes'); } } }, 'Delete plan')),
+      el('section', { class: 'card plan-top', style: `--sc:${p.color}` },
+        el('div', { class: 'scourse' },
+          p.goal ? el('span', { class: 'muted' }, p.goal) : null,
+          el('div', { class: 'sbar' }, el('span', { style: `width:${s.total ? (s.n / s.total * 100).toFixed(1) : 0}%` })),
+          el('span', { class: 'small' }, `${s.n} of ${s.total} topics done` + (s.end ? ` · ends ${fmt(s.end, { weekday: 'short', day: 'numeric', month: 'short' })}` : '') + ` · studies on ${(p.days || []).map(n => DOW_SHORT[n]).join(', ') || 'any day'}`)),
+        el('div', { class: 'evinfo-actions' },
+          el('button', { class: 'mini', onclick: () => openPlanMaker(p) }, '✦ Reorganize with Claude'),
+          el('button', { class: 'mini', onclick: () => addPlanItem(p) }, '+ Add topic'),
+          el('button', { class: 'mini', onclick: () => { replanPlan(p, t); showPlan(p); toast('Plan laid out again from today'); } }, 'Replan from today'))),
+      el('div', { class: 'duo' },
+        el('section', { class: 'card plan-sec overdue-sec' },
+          el('div', { class: 'card-head' }, el('h2', {}, 'Overdue'), overdue.length ? el('span', { class: 'st st-noshow' }, String(overdue.length)) : null),
+          overdue.length ? [el('ul', { class: 'routine' }, overdue.map(it => itemRow(it, { group: true }))),
+            el('button', { class: 'mini primary', onclick: () => { replanPlan(p, t); showPlan(p); toast('Moved forward from today'); } }, 'Move these forward from today')]
+            : el('p', { class: 'muted small' }, 'Nothing overdue. Well done!')),
+        el('section', { class: 'card plan-sec' },
+          el('div', { class: 'card-head' }, el('h2', {}, 'Next topics')),
+          next.length ? el('ul', { class: 'routine' }, next.map(it => itemRow(it, { group: true }))) : el('p', { class: 'muted small' }, s.total ? 'Everything is done!' : 'No topics yet.'))),
+      el('section', { class: 'card plan-sec' },
+        el('div', { class: 'card-head' }, el('h2', {}, 'All topics'), el('span', { class: 'muted small' }, `${s.n} of ${s.total} done`)),
+        items.length ? [...groups].map(([g, list]) => {
+          const done = list.filter(i => i.done).length;
+          return el('details', { class: 'tgroup', open: list.some(i => !i.done && i.date && i.date <= addDays(t, 7)) ? true : null },
+            el('summary', {}, el('span', {}, g), el('span', { class: 'muted small' }, `${done}/${list.length}`)),
+            el('ul', { class: 'routine' }, list.map(it => itemRow(it, { remove: true }))));
+        }) : el('p', { class: 'muted small' }, 'No topics yet. Tap Reorganize with Claude or Add topic.'),
+        (p.extras || []).length ? el('details', { class: 'tgroup' }, el('summary', {}, el('span', {}, 'Extras'), el('span', { class: 'muted small' }, `${p.extras.filter(x => x.done).length}/${p.extras.length}`)),
+          el('ul', { class: 'routine' }, p.extras.map(x => el('li', {},
+            el('button', { class: 'rcheck' + (x.done ? ' on' : ''), onclick: () => { toggleItem(p, x); showPlan(p); } }, el('span', { class: 'box' }),
+              el('span', { class: 'label' }, x.title, x.week ? el('small', {}, ' · week of ' + fmt(x.week, { day: 'numeric', month: 'short' })) : null)))))) : null),
+      el('section', { class: 'card plan-sec' },
+        el('div', { class: 'card-head' }, el('h2', {}, 'Notes'),
+          el('span', { class: 'head-actions' },
+            notes.length ? el('button', { class: 'mini', onclick: () => notesToPdf(notes, p.name) }, '⤓ Download PDF') : null,
+            el('button', { class: 'mini primary', onclick: () => newNote(t, p.name, p.id) }, '+ New note'))),
+        notes.length ? el('div', { class: 'note-grid' }, notes.map(n => noteCard(n, true))) : el('p', { class: 'muted small' }, 'No notes for this plan yet. Tap New note to write with Apple Pencil.')));
+    scrollTo(0, 0);
+  }
+
+  // ---- handwritten notes to PDF ----
+  let pdfLib = null;
+  function loadPdfLib() {
+    if (window.jspdf) return Promise.resolve(window.jspdf);
+    if (pdfLib) return pdfLib;
+    pdfLib = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      sc.onload = () => window.jspdf ? res(window.jspdf) : rej(new Error('PDF tool missing'));
+      sc.onerror = () => { pdfLib = null; rej(new Error('Could not load the PDF tool')); };
+      document.head.append(sc);
+    });
+    return pdfLib;
+  }
+  const PAGE_H = Math.round(LW * 297 / 210); // A4 proportions in note units
+  function renderSlice(note, top, h, scale) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(LW * scale); c.height = Math.round(h * scale);
+    const x = c.getContext('2d');
+    x.setTransform(scale, 0, 0, scale, 0, -top * scale);
+    drawPaper(x, note.paper, note.h || NOTE_H);
+    for (const st of note.strokes) drawStroke(x, st);
+    return c;
+  }
+  async function notesToPdf(notes, title) {
+    toast('Making the PDF…', 4000);
+    try {
+      const { jsPDF } = await loadPdfLib();
+      const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
+      const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 28;
+      let first = true;
+      for (const n of notes) {
+        // only as many pages as the writing needs
+        let bottom = 0;
+        n.strokes.forEach(st => { for (let i = 1; i < st.pts.length; i += 3) bottom = Math.max(bottom, st.pts[i]); });
+        const used = Math.min(n.h || NOTE_H, Math.max(PAGE_H * 0.5, bottom + 80));
+        for (let top = 0; top < used; top += PAGE_H) {
+          if (!first) doc.addPage();
+          first = false;
+          const h = Math.min(PAGE_H, (n.h || NOTE_H) - top);
+          if (top === 0) {
+            doc.setFontSize(13); doc.setTextColor(43, 42, 40);
+            doc.text(`${n.subject || 'Study note'} · ${fmt(n.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`, M, M + 8);
+          }
+          const img = renderSlice(n, top, h, 1.6).toDataURL('image/jpeg', 0.85);
+          const y0 = top === 0 ? M + 20 : M, avail = H - y0 - M;
+          const w = Math.min(W - 2 * M, avail * LW / h);
+          doc.addImage(img, 'JPEG', (W - w) / 2, y0, w, w * h / LW);
+        }
+      }
+      const blob = doc.output('blob');
+      const filename = `${(title || 'Study notes').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80)} notes.pdf`;
+      if (EMBED) {
+        const dl = await window.claude.use('downloads').catch(() => null);
+        if (!dl) { toast('Downloading isn\'t available here.', 5000); return; }
+        await dl.save({ filename, data: blob });
+        toast('PDF saved');
+      } else {
+        const a = el('a', { href: URL.createObjectURL(blob), download: filename });
+        document.body.append(a); a.click(); a.remove();
+      }
+    } catch (e) {
+      console.warn(e);
+      if (!e || e.code !== 'declined') toast('Couldn\'t make the PDF. Check your internet connection and try again.', 6000);
+    }
+  }
+  function addPlanItem(p) {
+    $('#addItemTitle').value = '';
+    $('#addItemDate').value = today();
+    $('#addItemDlg').showModal();
+    $('#addItemGo').onclick = () => {
+      const title = $('#addItemTitle').value.trim(), date = $('#addItemDate').value;
+      if (!title) { $('#addItemTitle').focus(); return; }
+      p.items.push({ id: 'i-' + uid(), title, group: '', date: isDate(date) ? date : '', done: null });
+      Store.save(p);
+      $('#addItemDlg').close();
+      showPlan(p);
+    };
+  }
+  $('#addItemCancel').addEventListener('click', () => $('#addItemDlg').close());
+
+  // ---- making a plan: Claude organizes it (or a simple spread when Claude isn't available) ----
+  let Sample = null;
+  if (EMBED) window.claude.use('sample').then(s => { Sample = s || null; }).catch(() => { Sample = null; });
+  let maker = null; // { plan (when reorganizing), draft }
+  function openPlanMaker(existing) {
+    maker = { plan: existing || null, draft: null, photo: null };
+    $('#pmTitle').textContent = existing ? `Reorganize “${existing.name}”` : 'New study plan';
+    $('#pmName').value = existing ? existing.name : '';
+    $('#pmName').closest('label').hidden = !!existing;
+    $('#pmMaterial').value = '';
+    $('#pmMaterialLabel').firstChild.textContent = existing ? 'What should change? (for example: I can only study on weekends now, finish by 20 Dec)' : 'What do you need to study?';
+    $('#pmMaterial').placeholder = existing ? 'Tell Claude what to change' : 'Paste the course content, a list of topics or chapters, or describe it. You can also add a photo.';
+    $('#pmStart').value = today();
+    $('#pmEnd').value = '';
+    $('#pmMinutes').value = '60';
+    document.querySelectorAll('#pmDays input').forEach(cb => { cb.checked = (existing && existing.days ? existing.days : [1, 2, 3, 4, 5]).includes(Number(cb.value)); });
+    $('#pmPhoto').value = '';
+    fill($('#pmPreview'));
+    $('#pmMsg').textContent = Sample ? '' : 'Claude can organize plans when the planner is open inside Claude. Without it, “Spread it out” puts one line per day.';
+    $('#pmClaude').hidden = !Sample;
+    $('#pmSpread').hidden = !!existing;
+    $('#pmSave').hidden = true;
+    $('#planDlg').showModal();
+  }
+  $('#pmCancel').addEventListener('click', () => $('#planDlg').close());
+  $('#pmPhoto').addEventListener('change', e => { maker.photo = e.target.files[0] || null; });
+  const pmDays = () => [...document.querySelectorAll('#pmDays input:checked')].map(cb => Number(cb.value));
+
+  function cleanDraft(raw, fallbackName) {
+    const days = Array.isArray(raw && raw.days) ? raw.days.filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : pmDays();
+    const items = (raw && Array.isArray(raw.items) ? raw.items : []).slice(0, 400).map(i => ({
+      id: 'i-' + uid(), title: String(i && i.title || '').slice(0, 300), group: String(i && i.group || '').slice(0, 200),
+      date: isDate(i && i.date) ? i.date : '', done: null,
+    })).filter(i => i.title);
+    return { name: String(raw && raw.name || fallbackName || 'Study plan').slice(0, 120), goal: String(raw && raw.goal || '').slice(0, 300), days: days.length ? days : [1, 2, 3, 4, 5], items, note: String(raw && raw.note || '').slice(0, 600) };
+  }
+  function drawDraft(d) {
+    const byDate = new Map();
+    d.items.forEach(i => { const k = i.date || ''; if (!byDate.has(k)) byDate.set(k, []); byDate.get(k).push(i); });
+    const keys = [...byDate.keys()].sort((a, b) => (a || '9').localeCompare(b || '9'));
+    fill($('#pmPreview'),
+      el('h3', { class: 'subhead' }, `${d.name} · ${d.items.length} items` + (keys.filter(Boolean).length ? ` · ${fmt(keys.filter(Boolean)[0], { day: 'numeric', month: 'short' })} – ${fmt(keys.filter(Boolean).pop(), { day: 'numeric', month: 'short' })}` : '')),
+      d.note ? el('p', { class: 'small' }, d.note) : null,
+      el('div', { class: 'pm-list' }, keys.map(k => el('div', { class: 'pday' },
+        el('div', { class: 'pday-head' }, el('b', {}, k ? fmt(k, { weekday: 'short', day: 'numeric', month: 'short' }) : 'No date')),
+        el('ul', {}, byDate.get(k).map(i => el('li', {}, i.title, i.group ? el('span', { class: 'muted small' }, ' · ' + i.group) : null)))))));
+    $('#pmSave').hidden = false;
+    $('#pmSave').textContent = maker.plan ? 'Use this plan' : 'Save plan';
+    $('#pmMaterialLabel').firstChild.textContent = 'Want something different? Tell Claude and ask again:';
+    $('#pmMaterial').value = '';
+  }
+  const sampleProblem = e => ({
+    not_granted: 'Claude needs your OK to organize plans. Tap the button again and choose Allow.',
+    rate_limited: 'Claude is busy right now. Wait a minute and try again.',
+    images_unavailable: 'Photos can\'t be sent to Claude here. Paste the text instead.',
+  })[e && e.code] || 'Claude couldn\'t make the plan this time. Try again, or shorten what you pasted.';
+
+  $('#pmClaude').addEventListener('click', async () => {
+    const msg = $('#pmMsg'), btn = $('#pmClaude');
+    const material = $('#pmMaterial').value.trim();
+    const p = maker.plan;
+    if (!material && !maker.photo && !maker.draft && !p) { msg.textContent = 'Paste or describe what you need to study first (or add a photo).'; return; }
+    const start = isDate($('#pmStart').value) ? $('#pmStart').value : today();
+    const end = isDate($('#pmEnd').value) ? $('#pmEnd').value : '';
+    const days = pmDays();
+    const current = maker.draft || (p ? { name: p.name, goal: p.goal, days: p.days, items: (p.items || []).map(i => ({ title: i.title, group: i.group, date: i.date, done: !!i.done })) } : null);
+    const holidays = (studyPlan() && studyPlan().holidays) || {};
+    const prompt = [
+      'You organize a personal study plan for a teacher who studies alongside work. Answer with JSON only, no other text.',
+      `Today is ${today()} (${DOW_SHORT[dow(today())]}). Plan from ${start}${end ? ' and finish by ' + end : ''}.`,
+      `Study only on these weekdays: ${days.map(n => DOW_SHORT[n]).join(', ') || 'Mon–Fri'}. About ${$('#pmMinutes').value || 60} minutes per study day.`,
+      Object.keys(holidays).length ? `No studying on: ${Object.entries(holidays).map(([d, n]) => d + ' (' + n + ')').join(', ')}.` : '',
+      'Other study already planned on the same days (balance around it): ' + JSON.stringify(plans().filter(x => !p || x.id !== p.id).flatMap(x => (x.items || []).filter(i => !i.done && i.date >= start).map(i => i.date)).reduce((a, d) => { a[d] = (a[d] || 0) + 1; return a; }, {})),
+      'Rules: keep the order of the material; split big chapters into study sessions that fit the time per day; add review sessions before tests or deadlines; give every item a date (YYYY-MM-DD) on an allowed weekday; keep titles short; write in the same language as the material.',
+      current ? 'Current plan (items marked done stay done and keep their date):\n' + JSON.stringify(current) : '',
+      material ? (current ? 'Change requested: ' : 'What to study:\n') + material : '',
+      'JSON shape: {"name": string, "goal": string, "days": [weekday numbers 0=Sun..6=Sat], "items": [{"title": string, "group": string (module, chapter or subject), "date": "YYYY-MM-DD", "done": boolean}], "note": string (one or two sentences about how you organized it)}',
+    ].filter(Boolean).join('\n\n');
+    btn.disabled = true;
+    msg.textContent = 'Claude is organizing your plan… this can take up to a minute.';
+    try {
+      const opts = { modelTier: 'default' };
+      if (maker.photo) opts.images = [maker.photo];
+      const raw = await Sample.json(prompt, opts);
+      const d = cleanDraft(raw, $('#pmName').value.trim() || (p && p.name));
+      if (!d.items.length) throw { code: 'empty' };
+      // keep what's already done
+      if (raw && Array.isArray(raw.items)) raw.items.forEach((r, i) => { if (r && r.done && d.items[i]) d.items[i].done = today(); });
+      if (p) (p.items || []).filter(i => i.done).forEach(old => { const m = d.items.find(n => n.title === old.title); if (m) { m.done = old.done; m.date = old.date; } });
+      maker.draft = d;
+      msg.textContent = '';
+      drawDraft(d);
+    } catch (e) {
+      console.warn(e);
+      msg.textContent = sampleProblem(e);
+    } finally { btn.disabled = false; btn.textContent = maker.draft ? '✦ Ask Claude again' : '✦ Organize with Claude'; }
+  });
+
+  // Without Claude: one non-empty line per item, lines ending in ":" start a group, spread over the chosen days
+  $('#pmSpread').addEventListener('click', () => {
+    const lines = $('#pmMaterial').value.split('\n').map(l => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
+    if (!lines.length) { $('#pmMsg').textContent = 'Write one topic per line first.'; return; }
+    const days = pmDays().length ? pmDays() : [1, 2, 3, 4, 5];
+    const start = isDate($('#pmStart').value) ? $('#pmStart').value : today();
+    const end = isDate($('#pmEnd').value) ? $('#pmEnd').value : '';
+    let group = '';
+    const items = [];
+    for (const l of lines) { if (/:$/.test(l)) { group = l.slice(0, -1); continue; } items.push({ id: 'i-' + uid(), title: l, group, date: '', done: null }); }
+    let slots = 0;
+    if (end) for (let d = start; d <= end && slots < 400; d = addDays(d, 1)) if (days.includes(dow(d))) slots++;
+    const perDay = end && slots ? Math.max(1, Math.ceil(items.length / slots)) : 1;
+    let d = start, k = 0;
+    for (const it of items) {
+      while (!days.includes(dow(d))) d = addDays(d, 1);
+      it.date = d;
+      if (++k >= perDay) { k = 0; d = addDays(d, 1); }
+    }
+    maker.draft = { name: $('#pmName').value.trim() || 'Study plan', goal: '', days, items, note: '' };
+    drawDraft(maker.draft);
+  });
+
+  $('#pmSave').addEventListener('click', () => {
+    const d = maker.draft;
+    if (!d) return;
+    if (maker.plan) {
+      const p = maker.plan;
+      Object.assign(p, { goal: d.goal || p.goal, days: d.days, items: d.items, rule: '' });
+      Store.save(p);
+      $('#planDlg').close();
+      showPlan(p);
+      toast('Plan reorganized');
+      return;
+    }
+    const used = plans().map(x => x.color);
+    const p = { id: 'plan-' + uid(), kind: 'plan', date: today(), created: Date.now(), name: $('#pmName').value.trim() || d.name, goal: d.goal,
+      color: PLAN_COLORS.find(c => !used.includes(c)) || PLAN_COLORS[0], days: d.days, items: d.items, extras: [] };
+    Store.save(p);
+    $('#planDlg').close();
+    go('plan/' + p.id);
+    toast('Study plan saved');
+  });
 
   // ---------- routing ----------
   // On GitHub Pages the address bar keeps the view (#day/2026-11-07), so Back works.
@@ -2926,6 +3416,7 @@ function send(o) {
     $('.menu').open = false;
     if (view === 'note' && Store.items.has(arg)) { cleanup(arg); showNote(Store.items.get(arg)); return; }
     if (view === 'class' && Store.items.has(arg)) { cleanup(arg); showClass(Store.items.get(arg)); return; }
+    if (view === 'plan' && Store.items.has(arg)) { cleanup(); showPlan(Store.items.get(arg)); return; }
     if (recClass && Dict && Dict.active()) Dict.stop().catch(() => {});
     recClass = null;
     cleanup();
@@ -2977,6 +3468,7 @@ function send(o) {
           (['task', 'note'].includes(it.kind) && Array.isArray(it.strokes) && isDate(it.date)) ||
           (it.kind === 'routine-day' && isDate(it.date) && it.done && typeof it.done === 'object') ||
           (it.kind === 'class' && isDate(it.date)) ||
+          (it.kind === 'plan' && isDate(it.date) && Array.isArray(it.items)) ||
           (it.kind === 'config' && it.id.startsWith('cfg-')));
         if (!ok) continue;
         Store.items.set(it.id, it); Store.flush(it.id); n++;
@@ -2995,7 +3487,7 @@ function send(o) {
 
   if (!EMBED && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-  Store.init().then(() => { seedStudyPlan(); route(); });
+  Store.init().then(() => { seedStudyPlan(); migrateStudy(); route(); });
 })();
 
 </script>

@@ -501,3 +501,52 @@ body.view-class #toolbar { display: none; }
 .evnotes .gsum { margin-top: 2px; }
 @media (max-width: 620px) { .evnotes { padding-left: 18px; } }
 .events button.what:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+/* ---------- event page ---------- */
+.evinfo { border-top: 4px solid var(--accent); }
+.evinfo-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.evinfo-head .cdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.evinfo-title { margin: 6px 0 2px; font-size: 26px; text-wrap: balance; overflow-wrap: anywhere; }
+.evinfo-when { margin: 0 0 6px; font-weight: 600; }
+.evinfo-desc summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+.evinfo-desc p { white-space: pre-wrap; font-size: 14px; margin: 6px 0 0; overflow-wrap: anywhere; }
+.evinfo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.evinfo-actions:empty { display: none; }
+#evinfoMsg:empty { display: none; }
+/* month cells: the cell opens the day, an event opens the event */
+.mcell { cursor: pointer; }
+.mcell .mnum { border: 0; background: none; padding: 0; color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+button.me { border: 0; text-align: left; font: inherit; font-size: 11px; cursor: pointer; width: 100%; }
+button.me:hover { filter: brightness(.96); text-decoration: underline; }
+
+/* ---------- study plans area ---------- */
+.plancards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.plancard { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--line); border-top: 4px solid var(--sc); border-radius: 12px; text-decoration: none; background: var(--surface); min-width: 0; }
+.plancard strong { color: var(--sc); font-size: 16px; }
+.plancard .st { align-self: flex-start; }
+.plan-name { flex: 1; min-width: 180px; font-weight: 700; font-size: 18px; }
+.notehead input[type="color"] { width: 44px; height: 38px; padding: 2px; }
+.plan-top { border-top: 4px solid var(--sc); }
+.plan-sec h2 { font-size: 17px; }
+.overdue-sec { border-color: #f0c9cd; }
+.pitem { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.pitem:last-child { border-bottom: 0; }
+.pitem .rcheck { flex: 1; min-width: 0; border-bottom: 0; }
+.pitem.late .label { color: #ac2c37; }
+.pdate { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.pitem.late .pdate { border-color: #f0c9cd; color: #ac2c37; background: #fff5f6; }
+.pitem.ok .pdate { color: #1f7a52; border-color: #cfe8db; }
+.tgroup { border-top: 1px solid var(--line); padding: 8px 0; }
+.tgroup summary { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; font-weight: 700; font-size: 14px; }
+.tgroup[open] summary { margin-bottom: 4px; }
+dialog.wide { width: min(720px, calc(100vw - 24px)); }
+.daypick { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.daypick legend { margin-bottom: 4px; }
+.daypick label { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 4px; font-size: 14px; }
+#pmPreview:empty { display: none; }
+.pm-list { max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; background: var(--bg); }
+.pm-list .pday { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pm-list ul { margin: 2px 0 0; padding-left: 18px; font-size: 13px; }
+.pday-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+body.view-plan #toolbar { display: none; }
+.duo { align-items: start; }
