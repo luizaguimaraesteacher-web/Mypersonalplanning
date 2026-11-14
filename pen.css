@@ -16,6 +16,7 @@
 }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 25; background: var(--bg); }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -449,3 +450,21 @@ body.view-calendar #toolbar { display: none; }
 .events li { align-items: center; }
 #granolaSend:disabled { opacity: .45; }
 body.view-class #toolbar { display: none; }
+
+/* ---------- last class ---------- */
+.lastcard { background: #fbfaf6; }
+.lc { display: flex; flex-direction: column; gap: 10px; }
+.lc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.lc-head .mini { margin-left: auto; }
+.lc-field { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.lc-field.hw { border-color: #f0dfb5; background: #fff8e8; }
+.lc-field h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.lc-field.hw h4 { color: #8a5c17; }
+.lc-field p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
+.lc-more { margin-top: 10px; }
+.lc-more summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent); }
+.movebox { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 12px; padding: 12px; background: #f4f1fb; border-radius: 12px; }
+.movebox label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 150px; }
+.movebox input { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 15px; background: var(--surface); }
+.gcal-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; }
+.gcal-line:empty { display: none; }

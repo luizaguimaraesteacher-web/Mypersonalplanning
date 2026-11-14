@@ -18,6 +18,7 @@
 }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 25; background: var(--bg); }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -452,6 +453,24 @@ body.view-calendar #toolbar { display: none; }
 #granolaSend:disabled { opacity: .45; }
 body.view-class #toolbar { display: none; }
 
+/* ---------- last class ---------- */
+.lastcard { background: #fbfaf6; }
+.lc { display: flex; flex-direction: column; gap: 10px; }
+.lc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.lc-head .mini { margin-left: auto; }
+.lc-field { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.lc-field.hw { border-color: #f0dfb5; background: #fff8e8; }
+.lc-field h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.lc-field.hw h4 { color: #8a5c17; }
+.lc-field p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
+.lc-more { margin-top: 10px; }
+.lc-more summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent); }
+.movebox { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 12px; padding: 12px; background: #f4f1fb; border-radius: 12px; }
+.movebox label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 150px; }
+.movebox input { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 15px; background: var(--surface); }
+.gcal-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; }
+.gcal-line:empty { display: none; }
+
 </style>
 <header class="top">
     <a class="brand" href="#day">✎ Pen Planner</a>
@@ -565,6 +584,17 @@ body.view-class #toolbar { display: none; }
       <section class="card">
         <h2>How did it go?</h2>
         <div id="classStatus" class="statusrow"></div>
+        <div id="moveBox" class="movebox" hidden>
+          <label class="small"><b>New day</b><input type="date" id="moveDay" /></label>
+          <label class="small"><b>New time</b><input type="time" id="moveTime" step="300" /></label>
+          <button class="mini primary" id="moveGoBtn">Move class</button>
+        </div>
+        <p id="classGcal" class="small muted gcal-line"></p>
+      </section>
+
+      <section class="card lastcard">
+        <div class="card-head"><h2>Last class</h2></div>
+        <div id="lastClass"></div>
       </section>
 
       <section class="card rec">
@@ -2178,7 +2208,7 @@ function send(o) {
     if (!Store.items.has(id)) {
       Store.save({
         id, kind: 'class', date: iso(new Date(ev.start)), title: ev.title || '', start: ev.start, end: ev.end || 0,
-        eventId: ev.id || '', calId: ev.calId || '', status: '', transcript: '', covered: '', homework: '', notes: '', created: Date.now(),
+        eventId: ev.id || '', calId: ev.calId || '', gTitle: ev.title || '', status: '', transcript: '', covered: '', homework: '', notes: '', created: Date.now(),
       });
     }
     go('class/' + id);
@@ -2252,6 +2282,71 @@ function send(o) {
       body);
   }
 
+  // ---- the student's previous classes ----
+  const className = t => String(t || '').toLowerCase().replace(/\b(class|lesson|aula)\s+(with|com)\b/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const sameStudent = (a, b) => {
+    const x = className(a), y = className(b);
+    return !!x && !!y && (x === y || x.split(' ').some(w => w.length > 2 && y.split(' ').includes(w)));
+  };
+  let lastTimer = 0;
+  function renderLastClass(c) {
+    clearTimeout(lastTimer);
+    const box = $('#lastClass');
+    if (!className(c.title)) {
+      fill(box, el('p', { class: 'muted small' }, 'Type the student\'s name or class at the top to see their last class here.'));
+      return;
+    }
+    const earlier = classes().filter(x => x.id !== c.id && x.start < c.start && sameStudent(x.title, c.title)).sort((a, b) => b.start - a.start);
+    const prev = earlier[0];
+    const field = (label, text, cls) => text && text.trim() ? el('div', { class: 'lc-field ' + (cls || '') }, el('h4', {}, label), el('p', {}, text.trim())) : null;
+    const granolaBox = el('div', {});
+    fill(box,
+      prev ? el('div', { class: 'lc' },
+        el('div', { class: 'lc-head' },
+          el('strong', {}, fmt(prev.date, { weekday: 'long', month: 'long', day: 'numeric' })),
+          el('span', { class: 'muted small' }, timeOf(prev.start) + ' · ' + (prev.title || 'Class')),
+          prev.status ? el('span', { class: 'st st-' + prev.status }, statusLabel(prev.status)) : null,
+          el('a', { class: 'mini', href: '#class/' + prev.id }, 'Open')),
+        field('Homework to check', prev.homework, 'hw'),
+        field('What we covered', prev.covered),
+        field('Notes', prev.notes),
+        !(prev.homework || prev.covered || prev.notes || '').trim() && prev.transcript
+          ? field('From the recording', prev.transcript.length > 600 ? prev.transcript.slice(0, 600) + '…' : prev.transcript) : null,
+        !(prev.homework || prev.covered || prev.notes || prev.transcript || '').trim() ? el('p', { class: 'muted small' }, 'Nothing was written for that class.') : null)
+        : el('p', { class: 'muted small' }, 'No earlier class with this name in the planner yet.'),
+      earlier.length > 1 ? el('details', { class: 'lc-more' },
+        el('summary', {}, `Earlier classes (${earlier.length - 1})`),
+        el('ul', { class: 'classlist' }, earlier.slice(1, 30).map(x => el('li', {}, el('a', { href: '#class/' + x.id },
+          el('span', { class: 'when' }, fmt(x.date, { month: 'short', day: 'numeric' })),
+          el('strong', {}, x.title || 'Class'),
+          x.status ? el('span', { class: 'st st-' + x.status }, statusLabel(x.status)) : null,
+          x.homework ? el('span', { class: 'muted small' }, 'Homework: ' + x.homework.slice(0, 60)) : null))))) : null,
+      EMBED ? granolaBox : null);
+    if (!EMBED) return;
+    // the student's earlier Granola notes (search by name over the last 4 months)
+    fill(granolaBox, el('h3', { class: 'subhead' }, 'Earlier Granola notes'), el('p', { class: 'muted small' }, 'Looking in Granola…'));
+    const words = className(c.title).split(' ').filter(w => w.length > 2);
+    lastTimer = setTimeout(async () => {
+      try {
+        const text = await granolaCall('search_meetings', {
+          keywords: words.length ? words.slice(0, 5) : [className(c.title)], from_date: addDays(c.date, -120), to_date: c.date, limit: 10, max_participants: 3,
+        });
+        if (recClass !== c) return;
+        const list = parseGranolaMeetings(text).filter(m => !m.upcoming && m.at && m.at < c.start - 20 * 60e3).sort((a, b) => b.at - a.at).slice(0, 4);
+        fill(granolaBox, el('h3', { class: 'subhead' }, 'Earlier Granola notes'),
+          list.length ? el('ul', { class: 'glist' }, list.map(m => {
+            const li = granolaItem(m);
+            const when = li.querySelector('.when');
+            if (when) when.textContent = fmt(iso(new Date(m.at)), { month: 'short', day: 'numeric' });
+            return li;
+          })) : el('p', { class: 'muted small' }, 'No earlier Granola notes found for this name.'));
+      } catch (err) {
+        if (recClass !== c) return;
+        fill(granolaBox, el('h3', { class: 'subhead' }, 'Earlier Granola notes'), el('p', { class: 'small' }, connectorProblem(err, 'Granola', 'your Granola notes')[0]));
+      }
+    }, 400);
+  }
+
   // ---- the class page ----
   let Dict = null;            // dictation namespace (desktop app / Chrome only)
   let recClass = null;        // class being recorded into
@@ -2307,7 +2402,7 @@ function send(o) {
       f.value = c[key] || '';
       f.oninput = () => { c[key] = f.value; Store.save(c); if (after) after(); };
     };
-    bind('#classTitle', 'title');
+    bind('#classTitle', 'title', () => renderLastClass(c));
     bind('#classTranscript', 'transcript', drawGranolaSend);
     bind('#classCovered', 'covered');
     bind('#classHomework', 'homework');
@@ -2323,13 +2418,18 @@ function send(o) {
       c.end = c.start + len;
       $('#classBack').href = '#day/' + c.date;
       Store.save(c);
+      renderLastClass(c);
     };
     $('#classDate').onchange = moveTime;
     $('#classTime').onchange = moveTime;
     $('#classWhen').textContent = c.eventId ? 'From your calendar' : '';
     fill($('#classStatus'), STATUSES.map(([k, label]) => el('button', {
       class: 'st st-' + k + (c.status === k ? ' on' : ''), 'aria-pressed': String(c.status === k),
-      onclick: () => { c.status = c.status === k ? '' : k; Store.save(c); showClassStatus(c); },
+      onclick: () => {
+        c.status = c.status === k ? '' : k;
+        if (c.status === 'moved' && !c.newStart) { showClassStatus(c); Store.save(c); $('#moveDay').focus(); syncClassToGoogle(c); return; }
+        Store.save(c); showClassStatus(c); syncClassToGoogle(c);
+      },
     }, label)));
     $('#classDelete').onclick = async () => {
       if (!(await ask('Delete this class record? Anything you recorded or wrote here is removed (Granola keeps its own copy).', 'Delete'))) return;
@@ -2351,9 +2451,11 @@ function send(o) {
         if (m) toast(m, 6000);
       });
     };
+    showClassStatus(c);
     drawRecState(Dict && Dict.active() ? 'listening' : 'idle');
     drawGranolaSend();
     findGranolaFor(c);
+    renderLastClass(c);
     scrollTo(0, 0);
   }
   function showClassStatus(c) {
@@ -2361,7 +2463,68 @@ function send(o) {
       const on = c.status === STATUSES[i][0];
       b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
     });
+    // Reschedule: pick the new day and time
+    const moving = c.status === 'moved';
+    $('#moveBox').hidden = !moving;
+    if (moving) {
+      const at = c.newStart || c.start || Date.now();
+      $('#moveDay').value = iso(new Date(at));
+      $('#moveTime').value = hm(at);
+    }
+    drawGcalLine(c);
   }
+
+  // Keep Google Calendar in step with the class, like Hello Pro Hub does. Guests are never emailed.
+  const localStamp = ms => { const d = new Date(ms); return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`; };
+  const dayTime = ms => fmt(iso(new Date(ms)), { weekday: 'short', month: 'short', day: 'numeric' }) + ' at ' + timeOf(ms);
+  function drawGcalLine(c, text, retry) {
+    const box = $('#classGcal');
+    if (!text) {
+      if (c.gCancelled) text = 'Marked as cancelled on Google Calendar (the time shows as free). Guests aren\'t emailed.';
+      else if (c.gMoved && c.gMovedTo) text = `Moved on Google Calendar to ${dayTime(c.gMovedTo)}. Guests aren't emailed.`;
+      else if ((c.status === 'cancelled' || (c.status === 'moved' && c.newStart)) && !c.eventId) text = 'This class isn\'t on Google Calendar, so nothing changed there.';
+      else if (c.status === 'moved' && !c.newStart) text = 'Choose the new day and time, then tap Move class.';
+    }
+    fill(box, text ? el('span', {}, text) : null, retry ? el('button', { class: 'mini', onclick: () => syncClassToGoogle(c) }, 'Try again') : null);
+  }
+  let syncing = Promise.resolve();
+  function syncClassToGoogle(c) {
+    syncing = syncing.then(() => doSync(c)).catch(() => {});
+    return syncing;
+  }
+  async function doSync(c) {
+    const want = c.status === 'moved' && c.newStart ? 'move' : c.status === 'cancelled' ? 'cancel' : 'none';
+    if (!EMBED || !c.eventId) { drawGcalLine(c); return; }
+    const work = (c.gMoved && want !== 'move') || (c.gCancelled && want !== 'cancel') || (want === 'cancel' && !c.gCancelled) || (want === 'move' && c.gMovedTo !== c.newStart);
+    if (!work) { drawGcalLine(c); return; }
+    const base = { eventId: c.eventId, notificationLevel: 'NONE', ...(c.calId ? { calendarId: c.calId } : {}) };
+    const dur = c.end > c.start ? c.end - c.start : 36e5;
+    const times = ms => ({ startTime: localStamp(ms), endTime: localStamp(ms + dur) });
+    const title = c.gTitle || c.title || 'Class';
+    drawGcalLine(c, 'Updating Google Calendar…');
+    try {
+      if (c.gMoved && want !== 'move') { await calCall('update_event', { ...base, ...times(c.start) }); c.gMoved = false; c.gMovedTo = 0; Store.save(c); }
+      if (c.gCancelled && want !== 'cancel') { await calCall('update_event', { ...base, summary: title, availability: 'AVAILABILITY_BUSY' }); c.gCancelled = false; Store.save(c); }
+      if (want === 'cancel' && !c.gCancelled) { await calCall('update_event', { ...base, summary: 'Cancelled: ' + title, availability: 'AVAILABILITY_FREE' }); c.gCancelled = true; Store.save(c); }
+      if (want === 'move' && c.gMovedTo !== c.newStart) { await calCall('update_event', { ...base, ...times(c.newStart) }); c.gMoved = true; c.gMovedTo = c.newStart; Store.save(c); }
+      try { const mcp = await window.claude.use('mcp'); if (mcp) await mcp.invalidate('Google Calendar'); } catch { /* nothing cached */ }
+      if (recClass === c) drawGcalLine(c);
+    } catch (err) {
+      console.warn(err);
+      if (recClass === c) drawGcalLine(c, 'Google Calendar didn\'t update (your class notes are saved). ' + eventProblem(err), true);
+    }
+  }
+  $('#moveGoBtn').addEventListener('click', () => {
+    const c = recClass;
+    if (!c) return;
+    const d = $('#moveDay').value, t = $('#moveTime').value;
+    if (!isDate(d) || !/^\d\d:\d\d$/.test(t)) { drawGcalLine(c, 'Choose the new day and time first.'); return; }
+    c.status = 'moved';
+    c.newStart = new Date(`${d}T${t}:00`).getTime();
+    Store.save(c);
+    showClassStatus(c);
+    syncClassToGoogle(c);
+  });
 
   // Granola section on the class page
   function drawGranolaSend() {

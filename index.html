@@ -128,6 +128,17 @@
       <section class="card">
         <h2>How did it go?</h2>
         <div id="classStatus" class="statusrow"></div>
+        <div id="moveBox" class="movebox" hidden>
+          <label class="small"><b>New day</b><input type="date" id="moveDay" /></label>
+          <label class="small"><b>New time</b><input type="time" id="moveTime" step="300" /></label>
+          <button class="mini primary" id="moveGoBtn">Move class</button>
+        </div>
+        <p id="classGcal" class="small muted gcal-line"></p>
+      </section>
+
+      <section class="card lastcard">
+        <div class="card-head"><h2>Last class</h2></div>
+        <div id="lastClass"></div>
       </section>
 
       <section class="card rec">
