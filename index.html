@@ -20,6 +20,7 @@
     <a class="brand" href="#day">✎ Pen Planner</a>
     <nav class="tabs">
       <a href="#day" data-nav="day">Daily</a>
+      <a href="#calendar" data-nav="calendar">Calendar</a>
       <a href="#notes" data-nav="notes">Study notes</a>
       <a href="#routines" data-nav="routines">Routines</a>
     </nav>
@@ -87,6 +88,25 @@
     <section id="view-routines" class="view">
       <div class="libhead"><h1>Routines</h1><span class="muted small">Last 30 days · tap a square to change it</span></div>
       <div id="routineTrack"></div>
+    </section>
+
+    <!-- MONTH CALENDAR -->
+    <section id="view-calendar" class="view">
+      <div class="monthhead">
+        <button class="round" id="prevMonth" aria-label="Previous month">‹</button>
+        <h1 id="monthTitle"></h1>
+        <button class="round" id="nextMonth" aria-label="Next month">›</button>
+        <button class="mini" id="thisMonth">This month</button>
+      </div>
+      <div id="monthGrid" class="month"></div>
+      <div class="monthfoot">
+        <div id="monthStatus" class="small"></div>
+        <div class="legend small">
+          <span><span class="mt">2 to do</span> tasks</span>
+          <span><span class="mn">1 note</span> study notes</span>
+          <span><span class="rp morning full"></span><span class="rp night part"></span> morning &amp; night routine</span>
+        </div>
+      </div>
     </section>
 
     <!-- ONE STUDY NOTE -->

@@ -22,6 +22,8 @@
     for (const kid of kids.flat()) if (kid != null) e.append(kid.nodeType ? kid : document.createTextNode(kid));
     return e;
   };
+  // replaceChildren, skipping empty (null/false) parts
+  const fill = (node, ...kids) => node.replaceChildren(...kids.flat().filter(k => k != null && k !== false));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const today = () => iso(new Date());
@@ -494,12 +496,12 @@
     const hl = Tools.tool === 'hl';
     const colors = hl ? HL_COLORS : PEN_COLORS, cur = hl ? Tools.hl : Tools.pen;
     const box = $('#colors');
-    box.replaceChildren(...colors.map((c, i) => el('button', {
+    fill(box, ...colors.map((c, i) => el('button', {
       class: 'swatch' + (i === cur && Tools.tool !== 'eraser' ? ' on' : ''), style: `--c:${c}`, 'aria-label': 'Colour ' + (i + 1),
       onclick: () => { if (Tools.tool === 'eraser') Tools.tool = 'pen'; Tools[Tools.tool === 'hl' ? 'hl' : 'pen'] = i; saveTools(); renderToolbar(); },
     })));
     box.classList.toggle('dim', Tools.tool === 'eraser');
-    $('#sizes').replaceChildren(...SIZES.map((s, i) => el('button', {
+    fill($('#sizes'), ...SIZES.map((s, i) => el('button', {
       class: 'size' + (i === Tools.size ? ' on' : ''), style: `--s:${5 + i * 4}px`, 'aria-label': ['Thin', 'Medium', 'Thick'][i],
       onclick: () => { Tools.size = i; saveTools(); renderToolbar(); },
     })));
@@ -561,8 +563,8 @@
   function renderTasks() {
     unmountAll();
     const date = state.date, list = $('#taskList'), over = $('#overdue');
-    list.replaceChildren();
-    over.replaceChildren();
+    fill(list, );
+    fill(over, );
     const tasks = Store.list('task').filter(x => x.strokes.length);
     if (date === today()) {
       const old = tasks.filter(x => !x.done && x.date < date).sort((a, b) => a.date.localeCompare(b.date) || a.created - b.created);
@@ -643,7 +645,7 @@
   function renderDayNotes() {
     const g = $('#dayNotes');
     const notes = Store.list('note').filter(n => n.date === state.date).sort((a, b) => a.created - b.created);
-    g.replaceChildren(...notes.map(n => noteCard(n, false)),
+    fill(g, ...notes.map(n => noteCard(n, false)),
       el('button', { class: 'note-card new', onclick: () => newNote(state.date) },
         el('span', { class: 'plus' }, '+'), el('span', {}, 'New study note')));
   }
@@ -666,14 +668,14 @@
     const subj = $('#noteSubject');
     subj.value = n.subject || '';
     subj.oninput = () => { n.subject = subj.value.trim(); Store.save(n); };
-    $('#subjectList').replaceChildren(...subjects().map(s => el('option', { value: s })));
+    fill($('#subjectList'), ...subjects().map(s => el('option', { value: s })));
     const d = $('#noteDate');
     d.value = n.date;
     d.onchange = () => { if (isDate(d.value)) { n.date = d.value; $('#noteBack').href = '#day/' + n.date; Store.save(n); } };
     const paper = $('#notePaper');
     paper.value = n.paper;
     const wrap = $('#notePage');
-    wrap.replaceChildren();
+    fill(wrap, );
     wrap.style.height = '';
     const surface = new Surface(wrap, n, { paper: () => n.paper, grow: true, onChange: () => Store.save(n) });
     paper.onchange = () => { n.paper = paper.value; lsSet('pp-paper', n.paper); Store.save(n); surface.render(); };
@@ -699,10 +701,10 @@
     const subs = subjects();
     if (state.filter && !subs.includes(state.filter)) state.filter = null;
     const chip = (label, val) => el('button', { class: state.filter === val ? 'on' : '', onclick: () => { state.filter = val; showLibrary(); } }, label);
-    $('#subjectChips').replaceChildren(...(subs.length ? [chip('All', null), ...subs.map(s => chip(s, s))] : []));
+    fill($('#subjectChips'), ...(subs.length ? [chip('All', null), ...subs.map(s => chip(s, s))] : []));
     const list = all.filter(n => !state.filter || n.subject === state.filter)
       .sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
-    $('#libGrid').replaceChildren(...list.map(n => noteCard(n, true)));
+    fill($('#libGrid'), ...list.map(n => noteCard(n, true)));
     $('#libEmpty').hidden = list.length > 0;
   }
   $('#libNew').addEventListener('click', () => newNote(today()));
@@ -761,7 +763,7 @@
         fmt(d, { weekday: 'narrow' })));
     }
     const s = streak(which);
-    card.replaceChildren(
+    fill(card, 
       el('div', { class: 'card-head' },
         el('h2', {}, el('span', { class: 'ico ' + info.cls }, info.icon), info.title),
         el('span', { class: 'muted' }, items.length ? `${done} of ${items.length}` : '')),
@@ -787,7 +789,7 @@
   }
   function drawSteps() {
     const list = $('#routineSteps');
-    list.replaceChildren(...editing.steps.map((s, i) => el('li', {}, el('div', { class: 'row' },
+    fill(list, ...editing.steps.map((s, i) => el('li', {}, el('div', { class: 'row' },
       el('input', { value: s.label, placeholder: 'e.g. Drink water', 'aria-label': 'Step ' + (i + 1), oninput: e => { s.label = e.target.value; } }),
       el('button', { type: 'button', class: 'icon-btn sm', title: 'Move up', 'aria-label': 'Move up', disabled: i === 0,
         onclick: () => { editing.steps.splice(i - 1, 0, editing.steps.splice(i, 1)[0]); drawSteps(); } }, '↑'),
@@ -816,7 +818,7 @@
     const dates = Array.from({ length: N }, (_, i) => addDays(t, i - N + 1));
     const cols = `minmax(110px, 180px) repeat(${N}, minmax(14px, 1fr))`;
     const box = $('#routineTrack');
-    box.replaceChildren(...['morning', 'night'].map(which => {
+    fill(box, ...['morning', 'night'].map(which => {
       const items = routines()[which], info = RT[which];
       const fullLast = n => dates.slice(-n).filter(d => fullDay(which, d)).length;
       const pct = items.length ? Math.round(100 * dates.reduce((a, d) => a + doneCount(which, d), 0) / (items.length * N)) : 0;
@@ -853,13 +855,103 @@
     }));
   }
 
+  // ---------- month calendar ----------
+  function showMonth(month, force) {
+    unmountAll();
+    state.month = month;
+    setView('calendar');
+    const [y, m] = month.split('-').map(Number);
+    const first = new Date(y, m - 1, 1), t = today();
+    const nextMonth = iso(new Date(y, m, 1)).slice(0, 7), prevMonth = iso(new Date(y, m - 2, 1)).slice(0, 7);
+    $('#monthTitle').textContent = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    $('#prevMonth').onclick = () => go('calendar/' + prevMonth);
+    $('#nextMonth').onclick = () => go('calendar/' + nextMonth);
+    $('#thisMonth').onclick = () => go('calendar/' + t.slice(0, 7));
+    $('#thisMonth').hidden = month === t.slice(0, 7);
+
+    // Sunday-first grid covering the whole month
+    const start = iso(new Date(y, m - 1, 1 - first.getDay()));
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
+    const dates = Array.from({ length: weeks * 7 }, (_, i) => addDays(start, i));
+    const end = addDays(dates[dates.length - 1], 1);
+
+    const tasks = Store.list('task').filter(x => x.strokes.length && x.date >= start && x.date < end);
+    const notes = Store.list('note').filter(n => (n.strokes.length || n.subject) && n.date >= start && n.date < end);
+    const R = routines();
+    const pip = (which, d) => {
+      const n = R[which].length, c = doneCount(which, d);
+      return el('span', { class: `rp ${which}` + (n && c === n ? ' full' : c ? ' part' : ''), title: `${RT[which].title}: ${c} of ${n}` });
+    };
+
+    const grid = $('#monthGrid');
+    const cells = new Map();
+    fill(grid, 
+      ...Array.from({ length: 7 }, (_, i) => el('span', { class: 'mdow' }, fmt(dates[i], { weekday: 'short' }))),
+      ...dates.map(d => {
+        const dayTasks = tasks.filter(x => x.date === d);
+        const open = dayTasks.filter(x => !x.done).length;
+        const nNotes = notes.filter(n => n.date === d).length;
+        const evBox = el('span', { class: 'mev' });
+        const marks = el('span', { class: 'mmarks' },
+          dayTasks.length ? el('span', { class: 'mt' + (open ? '' : ' alldone'), title: open ? `${open} task${open === 1 ? '' : 's'} to do` : 'All tasks done' },
+            open ? `${open} to do` : '✓ done') : null,
+          nNotes ? el('span', { class: 'mn', title: `${nNotes} study note${nNotes === 1 ? '' : 's'}` }, `${nNotes} note${nNotes === 1 ? '' : 's'}`) : null,
+          d <= t ? el('span', { class: 'rps' }, pip('morning', d), pip('night', d)) : null);
+        const cell = el('button', {
+          class: 'mcell' + (d.slice(0, 7) !== month ? ' out' : '') + (d === t ? ' today' : ''),
+          'aria-label': fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }),
+          onclick: () => go('day/' + d),
+        }, el('span', { class: 'mnum' }, String(parse(d).getDate())), evBox, marks);
+        cells.set(d, evBox);
+        return cell;
+      }));
+
+    // Google Calendar events, filled in when they arrive
+    const status = $('#monthStatus');
+    if (!EMBED && !Cal.url()) {
+      fill(status, el('span', {}, 'Connect Google Calendar to see your events here. '),
+        el('button', { class: 'mini', onclick: openCalSetup }, 'Connect'));
+      return;
+    }
+    fill(status, el('span', { class: 'muted' }, 'Loading your Google Calendar…'));
+    fetchEvents(start, end, force).then(events => {
+      if (state.month !== month || !document.body.classList.contains('view-calendar')) return;
+      const byDay = new Map();
+      for (const ev of events) for (const d of eventDays(ev)) {
+        if (!byDay.has(d)) byDay.set(d, []);
+        byDay.get(d).push(ev);
+      }
+      for (const [d, box] of cells) {
+        const list = byDay.get(d) || [];
+        fill(box, ...list.slice(0, 3).map(ev => el('span', { class: 'me' + (ev.allDay ? ' allday' : '') },
+          ev.allDay ? '' : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), ev.title || '(No title)')),
+          list.length > 3 ? el('span', { class: 'more' }, `+${list.length - 3} more`) : null,
+          list.length ? el('span', { class: 'mcount', 'aria-hidden': 'true' }, String(list.length)) : null);
+      }
+      const n = events.length;
+      fill(status, el('span', { class: 'muted' }, `${n} Google Calendar event${n === 1 ? '' : 's'} this month`),
+        el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => showMonth(month, true) }, '↻'));
+    }).catch(err => {
+      if (state.month !== month) return;
+      console.warn(err);
+      if (EMBED) {
+        const [msg, action] = connectorProblem(err);
+        fill(status, el('span', {}, msg + ' '),
+          action ? el('button', { class: 'mini', onclick: () => showMonth(month, true) }, action[0]) : null);
+      } else {
+        fill(status, el('span', {}, (err && err.message) || "Couldn't load your calendar."), el('button', { class: 'mini', onclick: openCalSetup }, 'Check connection'));
+      }
+    });
+  }
+
   // ---------- Google Calendar (through the user's own Apps Script web app) ----------
   const CAL_SCRIPT = `// Pen Planner: sends your Google Calendar events to your planner.
 // It only reads your calendars. It never changes them.
 function doGet(e) {
   var p = (e && e.parameter) || {};
   var from = new Date(Number(p.from)), to = new Date(Number(p.to));
-  if (isNaN(from) || isNaN(to) || to - from > 40 * 864e5) return send({ error: 'Bad dates' });
+  if (isNaN(from) || isNaN(to) || to - from > 62 * 864e5) return send({ error: 'Bad dates' });
   var events = [];
   CalendarApp.getAllCalendars().forEach(function (cal) {
     if (cal.isHidden() || !cal.isSelected()) return;
@@ -880,9 +972,10 @@ function send(o) {
   const Cal = {
     cache: new Map(),
     url() { return Config.get('calendarUrl', ''); },
-    async load(date, url = this.url(), force = false) {
-      if (!force && this.cache.has(date)) return this.cache.get(date);
-      const from = parse(date).getTime(), to = parse(addDays(date, 1)).getTime();
+    async load(date, url = this.url(), force = false, until = addDays(date, 1)) {
+      const key = date + '_' + until;
+      if (!force && this.cache.has(key)) return this.cache.get(key);
+      const from = parse(date).getTime(), to = parse(until).getTime();
       let res;
       try { res = await fetch(`${url}${url.includes('?') ? '&' : '?'}from=${from}&to=${to}`); }
       catch { throw new Error("Couldn't reach Google. Are you online?"); }
@@ -891,27 +984,49 @@ function send(o) {
       try { data = await res.json(); }
       catch { throw new Error('Google sent a sign-in page instead of your events. In the deployment, set "Who has access" to "Anyone".'); }
       if (data.error || !Array.isArray(data.events)) throw new Error(data.error || 'Unexpected reply from the script.');
-      this.cache.set(date, data.events);
+      this.cache.set(key, data.events);
       return data.events;
     },
   };
   const timeOf = ms => new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
   // Inside Claude: read events through the viewer's Google Calendar connector.
-  async function connectorEvents(date, force) {
+  // Events from `from` (inclusive) to `to` (exclusive), both YYYY-MM-DD.
+  async function connectorEvents(from, to, force) {
     const mcp = await window.claude.use('mcp').catch(() => null);
     if (!mcp) throw { code: 'no_mcp' };
-    const res = await mcp.callTool('Google Calendar', 'list_events',
-      { startTime: date + 'T00:00:00', endTime: addDays(date, 1) + 'T00:00:00', orderBy: 'startTime', pageSize: 100 },
-      force ? { cache: false } : undefined);
-    const list = (res && res.payload && Array.isArray(res.payload.events)) ? res.payload.events : [];
+    const list = [];
+    let pageToken;
+    for (let page = 0; page < 5; page++) {
+      const input = { startTime: from + 'T00:00:00', endTime: to + 'T00:00:00', orderBy: 'startTime', pageSize: 250 };
+      if (pageToken) input.pageToken = pageToken;
+      const res = await mcp.callTool('Google Calendar', 'list_events', input, force ? { cache: false } : undefined);
+      const pl = (res && res.payload) || {};
+      if (Array.isArray(pl.events)) list.push(...pl.events);
+      pageToken = typeof pl.nextPageToken === 'string' && pl.nextPageToken ? pl.nextPageToken : null;
+      if (!pageToken) break;
+    }
     return list.filter(e => e && e.status !== 'cancelled').map(e => {
       const s = e.start || {}, f = e.end || {};
-      return {
-        title: e.summary || '', allDay: !s.dateTime, location: e.location || '',
-        start: s.dateTime ? Date.parse(s.dateTime) : 0, end: f.dateTime ? Date.parse(f.dateTime) : 0,
-      };
+      const allDay = !s.dateTime;
+      const start = allDay ? (isDate(s.date) ? parse(s.date).getTime() : 0) : Date.parse(s.dateTime);
+      const end = allDay ? (isDate(f.date) ? parse(f.date).getTime() : start + 864e5) : (f.dateTime ? Date.parse(f.dateTime) : start);
+      return { title: e.summary || '', allDay, location: e.location || '', start, end };
     }).sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
+  }
+  // The days (YYYY-MM-DD) an event shows on. All-day events end the day before `end`.
+  function eventDays(ev) {
+    const first = iso(new Date(ev.start));
+    if (!ev.allDay) return [first];
+    const last = ev.end > ev.start ? iso(new Date(ev.end - 1)) : first;
+    const days = [];
+    for (let d = first; d <= last && days.length < 62; d = addDays(d, 1)) days.push(d);
+    return days;
+  }
+  // One place to get events, whichever way the calendar is connected.
+  async function fetchEvents(from, to, force) {
+    if (EMBED) return connectorEvents(from, to, force);
+    return Cal.load(from, Cal.url(), force, to);
   }
   function connectorProblem(err) {
     const retry = ['Try again', true];
@@ -928,9 +1043,9 @@ function send(o) {
   }
 
   function drawEvents(body, events) {
-    if (!events.length) { body.replaceChildren(el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
+    if (!events.length) { fill(body, el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
     const now = Date.now();
-    body.replaceChildren(el('ul', { class: 'events' }, events.map(ev => {
+    fill(body, el('ul', { class: 'events' }, events.map(ev => {
       const color = /^#[0-9a-f]{3,8}$/i.test(ev.color || '') ? ev.color : null;
       return el('li', { class: !ev.allDay && ev.end && ev.end < now ? 'past' : '' },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
@@ -946,35 +1061,35 @@ function send(o) {
     if (EMBED) {
       head.append(el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => renderCalendar(true) }, '↻'));
       const body = el('div', {}, el('p', { class: 'muted small' }, 'Loading your calendar…'));
-      card.replaceChildren(head, body);
+      fill(card, head, body);
       try {
-        const events = await connectorEvents(date, force);
+        const events = await connectorEvents(date, addDays(date, 1), force);
         if (state.date === date) drawEvents(body, events);
       } catch (err) {
         if (state.date !== date) return;
         console.warn(err);
         const [msg, action] = connectorProblem(err);
-        body.replaceChildren(el('p', { class: 'small' }, msg),
+        fill(body, el('p', { class: 'small' }, msg),
           action ? el('button', { class: 'mini', onclick: () => renderCalendar(true) }, action[0]) : null);
       }
       return;
     }
     if (!url) {
-      card.replaceChildren(head,
+      fill(card, head,
         el('p', { class: 'muted small' }, "See this day's Google Calendar events here, next to your tasks."),
         el('button', { class: 'mini primary', onclick: openCalSetup }, 'Connect Google Calendar'));
       return;
     }
     head.append(el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => renderCalendar(true) }, '↻'));
     const body = el('div', {}, el('p', { class: 'muted small' }, 'Loading your calendar…'));
-    card.replaceChildren(head, body);
+    fill(card, head, body);
     try {
       const events = await Cal.load(date, url, force);
       if (state.date !== date) return;
       drawEvents(body, events);
     } catch (err) {
       if (state.date !== date) return;
-      body.replaceChildren(el('p', { class: 'small', style: 'color:var(--danger)' }, err.message),
+      fill(body, el('p', { class: 'small', style: 'color:var(--danger)' }, err.message),
         el('button', { class: 'mini', onclick: openCalSetup }, 'Check connection'));
     }
   }
@@ -1052,6 +1167,7 @@ function send(o) {
     cleanup();
     if (view === 'notes') showLibrary();
     else if (view === 'routines') showRoutines();
+    else if (view === 'calendar') showMonth(/^\d{4}-\d\d$/.test(arg || '') ? arg : (state.month || today().slice(0, 7)));
     else showDay(isDate(arg) ? arg : today());
   }
   addEventListener('hashchange', () => { if (!EMBED) route(); });

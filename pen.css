@@ -211,6 +211,8 @@ body.view-notes #toolbar { display: none; }
 
 @media (max-width: 620px) {
   .top { gap: 10px; padding-left: 14px; padding-right: 14px; }
+  .tabs { overflow-x: auto; min-width: 0; scrollbar-width: none; }
+  .tabs a { white-space: nowrap; padding: 6px 11px; }
   .brand { display: none; }
   main { padding: 14px 14px; }
   .daytitle h1 { font-size: 24px; }
@@ -305,3 +307,64 @@ dialog::backdrop { background: rgba(30,28,24,.35); }
 
 body.view-routines #toolbar { display: none; }
 @media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
+
+/* ---------- month calendar ---------- */
+.monthhead { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; }
+.monthhead h1 { margin: 0; font-size: 28px; flex: 1; text-align: center; text-wrap: balance; }
+.month {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px;
+  background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.mdow { background: var(--soft); text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); padding: 6px 0; text-transform: uppercase; letter-spacing: .04em; }
+.mcell {
+  background: var(--surface); border: 0; padding: 6px 6px 8px; min-height: 112px; min-width: 0;
+  display: flex; flex-direction: column; align-items: stretch; gap: 3px; text-align: left; font-size: 12px;
+}
+.mcell:hover { background: #fcfbf8; }
+.mcell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.mcell.out { background: var(--bg); }
+.mcell.out .mnum { color: #bdb7ab; }
+.mnum { font-size: 14px; font-weight: 700; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; }
+.mcell.today .mnum { background: var(--ink); color: #fff; }
+.mev { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.me {
+  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #e8eefb; color: #24438f; border-radius: 4px; padding: 1px 5px; font-size: 11px;
+}
+.me b { font-weight: 700; margin-right: 3px; }
+.me.allday { background: var(--accent); color: #fff; }
+.more { font-size: 11px; color: var(--muted); padding-left: 2px; }
+.mcount { display: none; }
+.mmarks { margin-top: auto; display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.mt, .mn { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 6px; white-space: nowrap; }
+.mt { background: #f7eedf; color: #8a5c17; }
+.mt.alldone { background: #e3f4ec; color: #1f7a52; }
+.mn { background: #e3f4ec; color: #1f7a52; }
+.rps { display: inline-flex; gap: 2px; margin-left: auto; }
+.rp { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid; display: inline-block; vertical-align: middle; }
+.rp.morning { border-color: #d08a12; }
+.rp.night { border-color: #5a5fc4; }
+.rp.morning.full { background: #d08a12; }
+.rp.night.full { background: #5a5fc4; }
+.rp.morning.part { background: linear-gradient(to top, #d08a12 50%, transparent 50%); }
+.rp.night.part { background: linear-gradient(to top, #5a5fc4 50%, transparent 50%); }
+.monthfoot { display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: space-between; align-items: center; margin-top: 12px; }
+#monthStatus { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); align-items: center; }
+.legend > span { display: inline-flex; align-items: center; gap: 4px; }
+body.view-calendar #toolbar { display: none; }
+
+@media (max-width: 620px) {
+  .monthhead h1 { font-size: 22px; }
+  .monthhead { flex-wrap: wrap; }
+  .mcell { min-height: 72px; padding: 4px 3px 6px; }
+  .mnum { font-size: 13px; width: 24px; height: 24px; }
+  .me, .more { display: none; }
+  .mcount {
+    display: inline-grid; place-items: center; align-self: flex-start; min-width: 18px; height: 18px; padding: 0 4px;
+    border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+  }
+  .mt, .mn { font-size: 0; padding: 0; width: 8px; height: 8px; }
+  .rps { margin-left: 0; }
+}
