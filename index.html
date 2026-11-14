@@ -30,6 +30,7 @@
         <button id="calSetupBtn">Google Calendar connection</button>
         <button id="exportBtn">Download a backup</button>
         <label>Restore a backup<input type="file" id="importInput" accept="application/json,.json" hidden /></label>
+        <a href="https://claude.ai/artifact/MREnPXLS7mhgCieWR1TRkz" target="_blank" rel="noopener">Open Hello Pro Hub ↗</a>
         <a href="classic.html">Classic planner (typed)</a>
       </div>
     </details>
@@ -97,7 +98,9 @@
         <h1 id="monthTitle"></h1>
         <button class="round" id="nextMonth" aria-label="Next month">›</button>
         <button class="mini" id="thisMonth">This month</button>
+        <button class="mini primary" id="monthAdd" hidden>+ Event</button>
       </div>
+      <div id="calChips" class="calchips"></div>
       <div id="monthGrid" class="month"></div>
       <div class="monthfoot">
         <div id="monthStatus" class="small"></div>
@@ -202,6 +205,49 @@
         <span style="flex:1"></span>
         <button type="button" class="mini" id="calClose">Close</button>
         <button type="button" class="mini primary" id="calConnect">Connect</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- GOOGLE CALENDAR EVENT -->
+  <dialog id="eventDlg">
+    <form method="dialog" class="dlg" id="eventForm" autocomplete="off">
+      <h2 id="eventDlgTitle">New event</h2>
+      <label class="small"><b>What</b><input name="title" id="evTitle" placeholder="e.g. Class with Ana" /></label>
+      <div class="evrow">
+        <label class="small"><b>Day</b><input type="date" name="date" id="evDate" /></label>
+        <label class="small inline-check"><input type="checkbox" name="allday" id="evAllDay" /> All day</label>
+      </div>
+      <div class="evrow" id="evTimes">
+        <label class="small"><b>From</b><input type="time" name="start" id="evStart" step="300" /></label>
+        <label class="small"><b>To</b><input type="time" name="end" id="evEnd" step="300" /></label>
+      </div>
+      <label class="small"><b>Calendar</b><select id="evCal"></select></label>
+      <label class="small"><b>Where</b><input name="location" id="evLocation" placeholder="Optional" /></label>
+      <label class="small"><b>Notes</b><textarea name="notes" id="evNotes" rows="3" placeholder="Optional"></textarea></label>
+      <p id="evHub" class="muted small" hidden>This class was added by Hello Pro Hub. Changes here show up in the Hub's calendar too.</p>
+      <p id="evMsg" class="small err-text" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="mini danger" id="evDelete">Delete</button>
+        <span style="flex:1"></span>
+        <button type="button" class="mini" id="evCancel">Cancel</button>
+        <button type="button" class="mini primary" id="evSave">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- MOVE A TASK -->
+  <dialog id="moveDlg">
+    <form method="dialog" class="dlg">
+      <h2>Move this task to…</h2>
+      <div class="evrow">
+        <button type="button" class="mini" id="moveTomorrow">Tomorrow</button>
+        <button type="button" class="mini" id="moveNextWeek">In a week</button>
+      </div>
+      <label class="small"><b>Another day</b><input type="date" id="moveDate" /></label>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="moveCancel">Cancel</button>
+        <button type="button" class="mini primary" id="moveGo">Move</button>
       </div>
     </form>
   </dialog>

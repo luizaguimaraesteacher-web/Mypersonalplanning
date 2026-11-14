@@ -599,8 +599,8 @@
     } else {
       actions.append(
         el('button', {
-          class: 'icon-btn', title: 'Move to tomorrow', 'aria-label': 'Move to tomorrow',
-          onclick: () => { t.date = addDays(t.date, 1); Store.save(t); renderTasks(); toast('Moved to ' + fmt(t.date, { weekday: 'long', month: 'short', day: 'numeric' })); },
+          class: 'icon-btn', title: 'Move to another day', 'aria-label': 'Move to another day',
+          onclick: () => moveTask(t),
         }, '→'),
         el('button', {
           class: 'icon-btn', title: 'Delete task', 'aria-label': 'Delete task',
@@ -914,9 +914,13 @@
         el('button', { class: 'mini', onclick: openCalSetup }, 'Connect'));
       return;
     }
-    fill(status, el('span', { class: 'muted' }, 'Loading your Google Calendar…'));
-    fetchEvents(start, end, force).then(events => {
+    fill(status, el('span', { class: 'muted' }, 'Loading your Google calendars…'));
+    $('#monthAdd').hidden = !EMBED;
+    $('#monthAdd').onclick = () => openEventEditor(null, month === t.slice(0, 7) ? t : month + '-01');
+    fetchEvents(start, end, force).then(all => {
       if (state.month !== month || !document.body.classList.contains('view-calendar')) return;
+      renderCalChips($('#calChips'), () => showMonth(month));
+      const events = visibleEvents(all);
       const byDay = new Map();
       for (const ev of events) for (const d of eventDays(ev)) {
         if (!byDay.has(d)) byDay.set(d, []);
@@ -924,13 +928,13 @@
       }
       for (const [d, box] of cells) {
         const list = byDay.get(d) || [];
-        fill(box, ...list.slice(0, 3).map(ev => el('span', { class: 'me' + (ev.allDay ? ' allday' : '') },
+        fill(box, ...list.slice(0, 3).map(ev => el('span', { class: 'me' + (ev.allDay ? ' allday' : ''), style: `--ec:${ev.color || CAL_COLORS[0]}` },
           ev.allDay ? '' : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), ev.title || '(No title)')),
           list.length > 3 ? el('span', { class: 'more' }, `+${list.length - 3} more`) : null,
           list.length ? el('span', { class: 'mcount', 'aria-hidden': 'true' }, String(list.length)) : null);
       }
       const n = events.length;
-      fill(status, el('span', { class: 'muted' }, `${n} Google Calendar event${n === 1 ? '' : 's'} this month`),
+      fill(status, el('span', { class: 'muted' }, `${n} event${n === 1 ? '' : 's'} this month` + (all.failed && all.failed.length ? ` · couldn't read ${all.failed.join(', ')}` : '')),
         el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => showMonth(month, true) }, '↻'));
     }).catch(err => {
       if (state.month !== month) return;
@@ -992,13 +996,14 @@ function send(o) {
 
   // Inside Claude: read events through the viewer's Google Calendar connector.
   // Events from `from` (inclusive) to `to` (exclusive), both YYYY-MM-DD.
-  async function connectorEvents(from, to, force) {
+  async function connectorEvents(from, to, force, calendarId) {
     const mcp = await window.claude.use('mcp').catch(() => null);
     if (!mcp) throw { code: 'no_mcp' };
     const list = [];
     let pageToken;
     for (let page = 0; page < 5; page++) {
       const input = { startTime: from + 'T00:00:00', endTime: to + 'T00:00:00', orderBy: 'startTime', pageSize: 250 };
+      if (calendarId) input.calendarId = calendarId;
       if (pageToken) input.pageToken = pageToken;
       const res = await mcp.callTool('Google Calendar', 'list_events', input, force ? { cache: false } : undefined);
       const pl = (res && res.payload) || {};
@@ -1011,7 +1016,7 @@ function send(o) {
       const allDay = !s.dateTime;
       const start = allDay ? (isDate(s.date) ? parse(s.date).getTime() : 0) : Date.parse(s.dateTime);
       const end = allDay ? (isDate(f.date) ? parse(f.date).getTime() : start + 864e5) : (f.dateTime ? Date.parse(f.dateTime) : start);
-      return { title: e.summary || '', allDay, location: e.location || '', start, end };
+      return { id: typeof e.id === 'string' ? e.id : '', title: e.summary || '', allDay, location: e.location || '', description: typeof e.description === 'string' ? e.description : '', start, end };
     }).sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
   }
   // The days (YYYY-MM-DD) an event shows on. All-day events end the day before `end`.
@@ -1023,11 +1028,218 @@ function send(o) {
     for (let d = first; d <= last && days.length < 62; d = addDays(d, 1)) days.push(d);
     return days;
   }
-  // One place to get events, whichever way the calendar is connected.
-  async function fetchEvents(from, to, force) {
-    if (EMBED) return connectorEvents(from, to, force);
-    return Cal.load(from, Cal.url(), force, to);
+  // ---- several Google calendars ----
+  const CAL_COLORS = ['#3f6fd8', '#2e9b6a', '#c2453d', '#8a4fd6', '#d08a12', '#0e8a9a', '#c2489a', '#5b6778'];
+  const Cals = { list: null, seen: new Map() };
+  const hiddenCals = () => new Set(Config.get('hiddenCals', []));
+  function setCalHidden(id, hide) {
+    const h = hiddenCals();
+    if (hide) h.add(id); else h.delete(id);
+    Config.set('hiddenCals', [...h]);
   }
+  const isHolidayCal = id => /#holiday@group\.v\.calendar\.google\.com$/.test(id || '');
+
+  // The viewer's calendars (inside Claude: from the connector; on GitHub: the ones events came from).
+  async function calendarList(force) {
+    if (!EMBED) return [...Cals.seen.values()];
+    if (Cals.list && !force) return Cals.list;
+    const mcp = await window.claude.use('mcp').catch(() => null);
+    if (!mcp) throw { code: 'no_mcp' };
+    const out = [];
+    let pageToken;
+    try {
+      for (let page = 0; page < 4; page++) {
+        const res = await mcp.callTool('Google Calendar', 'list_calendars', pageToken ? { pageToken } : {}, force ? { cache: false } : undefined);
+        const pl = (res && res.payload) || {};
+        if (Array.isArray(pl.calendars)) out.push(...pl.calendars);
+        pageToken = typeof pl.nextPageToken === 'string' && pl.nextPageToken ? pl.nextPageToken : null;
+        if (!pageToken) break;
+      }
+    } catch (err) {
+      // Can't list calendars: fall back to the main calendar (and try the list again next time).
+      console.warn(err);
+      return [{ id: '', name: 'My calendar', label: 'My calendar', color: CAL_COLORS[0], writable: true }];
+    }
+    const cals = out.filter(c => c && typeof c.id === 'string').map(c => ({ id: c.id, name: String(c.summary || c.id) }));
+    cals.sort((a, b) => isHolidayCal(a.id) - isHolidayCal(b.id)); // your own calendars first, holidays last
+    cals.forEach((c, i) => {
+      c.color = CAL_COLORS[i % CAL_COLORS.length];
+      c.label = isHolidayCal(c.id) ? c.name.replace(/^Holidays in /, '') + ' holidays' : c.name;
+      c.writable = !isHolidayCal(c.id);
+    });
+    Cals.list = cals.length ? cals : [{ id: '', name: 'My calendar', label: 'My calendar', color: CAL_COLORS[0], writable: true }];
+    return Cals.list;
+  }
+
+  // Events from every calendar. Hidden calendars are filtered when drawing, so switching is instant.
+  // `events.failed` lists calendars that couldn't be read.
+  async function fetchEvents(from, to, force) {
+    if (!EMBED) {
+      const evs = await Cal.load(from, Cal.url(), force, to);
+      return evs.map(e => {
+        const id = e.calendar || 'Calendar';
+        if (!Cals.seen.has(id)) Cals.seen.set(id, { id, name: id, label: id, color: /^#[0-9a-f]{3,8}$/i.test(e.color || '') ? e.color : CAL_COLORS[Cals.seen.size % CAL_COLORS.length] });
+        return { ...e, calId: id, color: Cals.seen.get(id).color };
+      });
+    }
+    const cals = await calendarList(force);
+    const results = await Promise.allSettled(cals.map(c => connectorEvents(from, to, force, c.id || undefined)));
+    const events = [], failed = [];
+    let firstErr = null;
+    results.forEach((r, i) => {
+      const c = cals[i];
+      if (r.status === 'fulfilled') r.value.forEach(e => events.push({ ...e, calId: c.id, color: c.color }));
+      else { failed.push(c.label); firstErr = firstErr || r.reason; }
+    });
+    if (cals.length && failed.length === cals.length) throw firstErr;
+    events.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
+    events.failed = failed;
+    return events;
+  }
+  const visibleEvents = events => { const h = hiddenCals(); return events.filter(e => !h.has(e.calId)); };
+
+  // Buttons to switch each calendar on and off
+  async function renderCalChips(box, onChange) {
+    let cals;
+    try { cals = await calendarList(); } catch { fill(box); return; }
+    if (cals.length < 2) { fill(box); return; }
+    const h = hiddenCals();
+    fill(box,
+      cals.map(c => el('button', {
+        class: 'calchip' + (h.has(c.id) ? '' : ' on'), style: `--ec:${c.color}`, 'aria-pressed': String(!h.has(c.id)),
+        title: (h.has(c.id) ? 'Show ' : 'Hide ') + c.label,
+        onclick: () => { setCalHidden(c.id, !hiddenCals().has(c.id)); onChange(); },
+      }, el('span', { class: 'sw' }), c.label)),
+      h.size ? el('button', { class: 'calchip all', onclick: () => { Config.set('hiddenCals', []); onChange(); } }, 'Show all') : null);
+  }
+
+  // ---- add, change and delete Google Calendar events ----
+  const hm = ms => { const d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  let editingEvent = null;
+  async function openEventEditor(ev, date) {
+    if (!EMBED) return;
+    editingEvent = ev;
+    const f = $('#eventForm');
+    $('#eventDlgTitle').textContent = ev ? 'Edit event' : 'New event';
+    $('#evMsg').textContent = '';
+    $('#evDelete').hidden = !ev;
+    $('#evHub').hidden = !(ev && /Hello Pro Hub/.test(ev.description || ''));
+    let cals = [];
+    try { cals = (await calendarList()).filter(c => c.writable); } catch { /* use the main calendar */ }
+    const sel = $('#evCal');
+    fill(sel, (cals.length ? cals : [{ id: '', label: 'My calendar' }]).map(c => el('option', { value: c.id }, c.label)));
+    sel.disabled = !!ev; // Google can't move an event to another calendar here
+    if (ev) {
+      sel.value = ev.calId || '';
+      if (sel.value !== (ev.calId || '')) fill(sel, el('option', { value: ev.calId || '' }, 'Its calendar'));
+      $('#evTitle').value = ev.title;
+      $('#evDate').value = iso(new Date(ev.start));
+      $('#evAllDay').checked = ev.allDay;
+      $('#evStart').value = ev.allDay ? '09:00' : hm(ev.start);
+      $('#evEnd').value = ev.allDay ? '10:00' : hm(ev.end || ev.start + 36e5);
+      $('#evLocation').value = ev.location || '';
+      $('#evNotes').value = ev.description || '';
+    } else {
+      const last = Config.get('lastCal', '');
+      if ([...sel.options].some(o => o.value === last)) sel.value = last;
+      $('#evTitle').value = ''; $('#evDate').value = date || state.date || today(); $('#evAllDay').checked = false;
+      $('#evStart').value = '09:00'; $('#evEnd').value = '10:00'; $('#evLocation').value = ''; $('#evNotes').value = '';
+    }
+    syncAllDay();
+    $('#eventDlg').showModal();
+    if (!ev) $('#evTitle').focus();
+  }
+  function syncAllDay() { $('#evTimes').hidden = $('#evAllDay').checked; }
+  $('#evAllDay').addEventListener('change', syncAllDay);
+  $('#evCancel').addEventListener('click', () => $('#eventDlg').close());
+
+  async function calCall(tool, input) {
+    const mcp = await window.claude.use('mcp').catch(() => null);
+    if (!mcp) throw { code: 'no_mcp' };
+    return mcp.callTool('Google Calendar', tool, input);
+  }
+  function eventProblem(err) {
+    if (err && (err.code === 'not_in_manifest' || err.code === 'approval_required' || err.code === 'consent_required'))
+      return 'The planner needs your OK to change your calendar. Tap Save again and choose Allow.';
+    if (err && (err.code === 'server_unavailable' || err.code === 'upstream_error'))
+      return 'Google Calendar didn\'t answer, so this may or may not have been saved. Refresh the calendar to check before trying again.';
+    if (err && err.code === 'tool_error') return 'Google Calendar refused this change' + (err.message && err.message.length < 200 ? ': ' + err.message : '.');
+    return connectorProblem(err)[0];
+  }
+  async function afterEventChange(date) {
+    try { const mcp = await window.claude.use('mcp'); if (mcp) await mcp.invalidate('Google Calendar'); } catch { /* nothing cached */ }
+    if (document.body.classList.contains('view-calendar')) showMonth(state.month, true);
+    else if (document.body.classList.contains('view-day')) renderCalendar(true);
+  }
+  $('#evSave').addEventListener('click', async () => {
+    const f = $('#eventForm'), msg = $('#evMsg');
+    const title = $('#evTitle').value.trim(), date = $('#evDate').value, allDay = $('#evAllDay').checked;
+    if (!title) { msg.textContent = 'Give the event a name.'; $('#evTitle').focus(); return; }
+    if (!isDate(date)) { msg.textContent = 'Choose a date.'; return; }
+    if (!allDay && !($('#evEnd').value > $('#evStart').value)) { msg.textContent = 'The end time has to be after the start time.'; return; }
+    const input = allDay
+      ? { allDay: true, startTime: date + 'T00:00:00', endTime: addDays(date, 1) + 'T00:00:00' }
+      : { startTime: `${date}T${$('#evStart').value}:00`, endTime: `${date}T${$('#evEnd').value}:00` };
+    input.summary = title;
+    input.location = $('#evLocation').value.trim();
+    input.description = $('#evNotes').value;
+    const ev = editingEvent;
+    const calId = ev ? ev.calId : $('#evCal').value;
+    if (calId) input.calendarId = calId;
+    $('#evSave').disabled = true;
+    msg.textContent = 'Saving…';
+    try {
+      if (ev) {
+        if (!ev.allDay && allDay === false) delete input.allDay;
+        await calCall('update_event', { ...input, eventId: ev.id });
+      } else {
+        await calCall('create_event', input);
+        Config.set('lastCal', calId || '');
+      }
+      $('#eventDlg').close();
+      toast(ev ? 'Event updated' : 'Event added to Google Calendar');
+      afterEventChange(date);
+    } catch (err) {
+      console.warn(err);
+      msg.textContent = eventProblem(err);
+    } finally { $('#evSave').disabled = false; }
+  });
+  $('#evDelete').addEventListener('click', async () => {
+    const ev = editingEvent;
+    if (!ev) return;
+    $('#eventDlg').close();
+    if (!(await ask(`Delete "${ev.title || 'this event'}" from Google Calendar?`, 'Delete'))) { $('#eventDlg').showModal(); return; }
+    try {
+      await calCall('delete_event', { eventId: ev.id, ...(ev.calId ? { calendarId: ev.calId } : {}) });
+      toast('Event deleted');
+      afterEventChange(iso(new Date(ev.start)));
+    } catch (err) {
+      console.warn(err);
+      toast(eventProblem(err), 7000);
+    }
+  });
+
+  // ---- move a task to any day ----
+  let movingTask = null;
+  function moveTask(t) {
+    movingTask = t;
+    $('#moveDate').value = addDays(t.date, 1);
+    $('#moveDlg').showModal();
+  }
+  function doMove(date) {
+    const t = movingTask;
+    $('#moveDlg').close();
+    if (!t || !isDate(date) || date === t.date) return;
+    t.date = date;
+    Store.save(t);
+    renderTasks();
+    toast('Moved to ' + fmt(date, { weekday: 'long', month: 'short', day: 'numeric' }));
+  }
+  $('#moveTomorrow').addEventListener('click', () => doMove(addDays(today(), 1)));
+  $('#moveNextWeek').addEventListener('click', () => doMove(addDays(today(), 7)));
+  $('#moveGo').addEventListener('click', () => doMove($('#moveDate').value));
+  $('#moveCancel').addEventListener('click', () => $('#moveDlg').close());
+
   function connectorProblem(err) {
     const retry = ['Try again', true];
     switch (err && err.code) {
@@ -1047,7 +1259,11 @@ function send(o) {
     const now = Date.now();
     fill(body, el('ul', { class: 'events' }, events.map(ev => {
       const color = /^#[0-9a-f]{3,8}$/i.test(ev.color || '') ? ev.color : null;
-      return el('li', { class: !ev.allDay && ev.end && ev.end < now ? 'past' : '' },
+      const canEdit = EMBED && ev.id;
+      return el('li', { class: (!ev.allDay && ev.end && ev.end < now ? 'past' : '') + (canEdit ? ' editable' : ''),
+          role: canEdit ? 'button' : null, tabindex: canEdit ? '0' : null, title: canEdit ? 'Edit this event' : null,
+          onclick: canEdit ? () => openEventEditor(ev) : null,
+          onkeydown: canEdit ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEventEditor(ev); } } : null },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, ev.allDay ? 'All day' : timeOf(ev.start)),
         el('span', { class: 'what' }, el('strong', {}, ev.title || '(No title)'),
@@ -1059,12 +1275,18 @@ function send(o) {
     const card = $('#calCard'), date = state.date, url = Cal.url();
     const head = el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:var(--accent)' }), 'Calendar'));
     if (EMBED) {
-      head.append(el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => renderCalendar(true) }, '↻'));
+      head.append(el('span', { class: 'head-actions' },
+        el('button', { class: 'mini', onclick: () => openEventEditor(null, date) }, '+ Event'),
+        el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => renderCalendar(true) }, '↻')));
       const body = el('div', {}, el('p', { class: 'muted small' }, 'Loading your calendar…'));
-      fill(card, head, body);
+      const chips = el('div', { class: 'calchips small-chips' });
+      fill(card, head, body, chips);
       try {
-        const events = await connectorEvents(date, addDays(date, 1), force);
-        if (state.date === date) drawEvents(body, events);
+        const events = await fetchEvents(date, addDays(date, 1), force);
+        if (state.date !== date) return;
+        drawEvents(body, visibleEvents(events));
+        if (events.failed && events.failed.length) body.append(el('p', { class: 'muted small' }, `Couldn't read: ${events.failed.join(', ')}.`));
+        renderCalChips(chips, () => renderCalendar());
       } catch (err) {
         if (state.date !== date) return;
         console.warn(err);
@@ -1084,9 +1306,9 @@ function send(o) {
     const body = el('div', {}, el('p', { class: 'muted small' }, 'Loading your calendar…'));
     fill(card, head, body);
     try {
-      const events = await Cal.load(date, url, force);
+      const events = await fetchEvents(date, addDays(date, 1), force);
       if (state.date !== date) return;
-      drawEvents(body, events);
+      drawEvents(body, visibleEvents(events));
     } catch (err) {
       if (state.date !== date) return;
       fill(body, el('p', { class: 'small', style: 'color:var(--danger)' }, err.message),
