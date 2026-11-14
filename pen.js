@@ -531,7 +531,7 @@
   function setView(v) {
     $('#loading').hidden = true;
     document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
-    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === (v === 'note' || v === 'plan' ? 'notes' : v)));
+    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === (v === 'note' || v === 'plan' || v === 'topic' ? 'notes' : v)));
     document.body.className = document.body.className.replace(/\bview-\S+/g, '').trim() + ' view-' + v;
     renderToolbar();
   }
@@ -638,7 +638,7 @@
     const c = el('canvas', { class: 'thumb' });
     const card = el('a', { class: 'note-card', href: '#note/' + n.id }, c,
       el('div', { class: 'meta' },
-        el('strong', {}, n.subject || 'No subject'),
+        el('strong', {}, n.topic ? n.topic : (n.subject || 'No subject')),
         el('span', {}, showDate ? fmt(n.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
           : pageCount(n))));
     requestAnimationFrame(() => drawThumb(c, n));
@@ -664,6 +664,10 @@
 
   // One study note
   function showNote(n) {
+    if (n.topicId && n.planId && Store.items.has(n.planId)) {
+      const pl = Store.items.get(n.planId), it = (pl.items || []).find(i => i.id === n.topicId);
+      if (it) { showTopic(pl, it); return; }
+    }
     unmountAll();
     state.note = n.id;
     setView('note');
@@ -2122,10 +2126,10 @@ function send(o) {
     }
     const extras = [];
     all.forEach(p => (p.extras || []).forEach(x => { if (x.week === mondayOf(date) && !x.done) extras.push({ p, x }); }));
-    const check = (p, it) => el('li', {}, el('button', {
-      class: 'rcheck' + (it.done ? ' on' : ''), 'aria-pressed': String(!!it.done),
-      onclick: () => { toggleItem(p, it); renderStudyCard(); },
-    }, el('span', { class: 'box' }), el('span', { class: 'label' }, it.title)));
+    const check = (p, it) => el('li', { class: 'pitem' + (it.done ? ' ok' : '') },
+      el('button', { class: 'tick' + (it.done ? ' on' : ''), 'aria-pressed': String(!!it.done), 'aria-label': (it.done ? 'Not done: ' : 'Done: ') + it.title, onclick: () => { toggleItem(p, it); renderStudyCard(); } }, el('span', { class: 'box' })),
+      String(it.id).startsWith('x-') ? el('span', { class: 'ptitle' }, it.title)
+        : el('button', { class: 'ptitle', title: 'Open this topic: notes and recording', onclick: () => openTopic(p, it) }, el('span', {}, it.title), el('span', { class: 'marks' }, topicMarks(it) || '›')));
     const hol = (studyPlan() && studyPlan().holidays || {})[date];
     const nDone = rows.filter(r => r.it.done).length;
     fill(card,
@@ -2199,8 +2203,10 @@ function send(o) {
     };
     const dateLabel = it => it.date ? fmt(it.date, { weekday: 'short', day: 'numeric', month: 'short' }) : 'no date';
     const itemRow = (it, opts = {}) => el('li', { class: 'pitem' + (it.done ? ' ok' : '') + (!it.done && it.date && it.date < t ? ' late' : '') },
-      el('button', { class: 'rcheck' + (it.done ? ' on' : ''), 'aria-pressed': String(!!it.done), onclick: () => { toggleItem(p, it); showPlan(p); } },
-        el('span', { class: 'box' }), el('span', { class: 'label' }, it.title, opts.group && it.group ? el('small', {}, ' · ' + it.group) : null)),
+      el('button', { class: 'tick' + (it.done ? ' on' : ''), 'aria-pressed': String(!!it.done), 'aria-label': (it.done ? 'Not done: ' : 'Done: ') + it.title, onclick: () => { toggleItem(p, it); showPlan(p); } }, el('span', { class: 'box' })),
+      el('button', { class: 'ptitle', title: 'Open this topic', onclick: () => openTopic(p, it) },
+        el('span', {}, it.title, opts.group && it.group ? el('small', {}, ' · ' + it.group) : null),
+        topicMarks(it) ? el('span', { class: 'marks' }, topicMarks(it)) : null),
       el('button', { class: 'pdate', title: 'Change the day', onclick: () => movePlanItems(p, [it], () => showPlan(p)) }, it.done ? '✓ ' + fmt(it.done, { day: 'numeric', month: 'short' }) : dateLabel(it)),
       opts.remove ? el('button', { class: 'icon-btn sm', title: 'Remove', 'aria-label': 'Remove ' + it.title, onclick: async () => { if (await ask(`Remove "${it.title}" from the plan?`, 'Remove')) { p.items = p.items.filter(x => x !== it); Store.save(p); showPlan(p); } } }, '×') : null);
     fill(box,
@@ -2217,7 +2223,12 @@ function send(o) {
         el('div', { class: 'evinfo-actions' },
           el('button', { class: 'mini', onclick: () => openPlanMaker(p) }, '✦ Reorganize with Claude'),
           el('button', { class: 'mini', onclick: () => addPlanItem(p) }, '+ Add topic'),
-          el('button', { class: 'mini', onclick: () => { replanPlan(p, t); showPlan(p); toast('Plan laid out again from today'); } }, 'Replan from today'))),
+          el('button', { class: 'mini', onclick: () => { replanPlan(p, t); showPlan(p); toast('Plan laid out again from today'); } }, 'Replan from today'),
+          EMBED ? el('button', { class: 'mini', onclick: async e => {
+            const b = e.currentTarget; b.disabled = true; b.textContent = 'Syncing…';
+            try { const r = await syncGranola(p); toast(r.linked ? `Linked ${r.linked} Granola note${r.linked === 1 ? '' : 's'} to topics` : 'No new Granola notes matched a topic', 5000); showPlan(p); }
+            catch (err) { toast(connectorProblem(err, 'Granola', 'your Granola notes')[0], 6000); b.disabled = false; b.textContent = '⟳ Sync with Granola'; }
+          } }, '⟳ Sync with Granola') : null)),
       el('div', { class: 'duo' },
         el('section', { class: 'card plan-sec overdue-sec' },
           el('div', { class: 'card-head' }, el('h2', {}, 'Overdue'), overdue.length ? el('span', { class: 'st st-noshow' }, String(overdue.length)) : null),
@@ -2471,6 +2482,133 @@ function send(o) {
     toast('Study plan saved');
   });
 
+  // ---------- one topic: written notes + Granola recording ----------
+  const topicMarks = it => [it.noteId && Store.items.has(it.noteId) && Store.items.get(it.noteId).strokes.length ? '✎' : '', it.granola && it.granola.length ? '🎙' : ''].filter(Boolean).join(' ');
+  const openTopic = (p, it) => go(`topic/${p.id}/${it.id}`);
+
+  // Granola notes in a date range, one search
+  async function granolaRange(from, to, force) {
+    const text = await granolaCall('search_meetings', { from_date: from, to_date: to, limit: 100, max_participants: 2, include_shared: false }, force);
+    return parseGranolaMeetings(text).filter(m => !m.upcoming);
+  }
+  const topicWords = s => className(s).split(' ').filter(w => w.length > 3);
+  function topicScore(it, m) {
+    const words = topicWords(it.title);
+    if (!words.length) return 0;
+    const hay = ' ' + className(m.title + ' ' + m.headers.join(' ')) + ' ';
+    return words.filter(w => hay.includes(' ' + w)).length / words.length;
+  }
+  const keepMeeting = m => ({ id: m.id, title: m.title, url: m.url, at: m.at, headers: m.headers.slice(0, 6) });
+  function linkGranola(it, m) {
+    it.granola = it.granola || [];
+    if (!it.granola.some(g => g.id === m.id)) it.granola.push(keepMeeting(m));
+  }
+  // Sync: look through Granola from the plan's first day to today and link notes whose title or headings match a topic
+  async function syncGranola(p, onlyItem) {
+    const items = onlyItem ? [onlyItem] : (p.items || []);
+    const dates = items.map(i => i.date).filter(Boolean).sort();
+    const t = today();
+    const from = addDays([dates[0] || t, p.date || t].sort()[0], -7);
+    const meetings = await granolaRange(from < t ? from : addDays(t, -30), t, true);
+    let linked = 0;
+    for (const it of items) {
+      const before = (it.granola || []).length;
+      meetings.filter(m => topicScore(it, m) >= 0.6).forEach(m => linkGranola(it, m));
+      linked += (it.granola || []).length - before;
+    }
+    p.lastSync = Date.now();
+    Store.save(p);
+    return { linked, meetings };
+  }
+
+  function showTopic(p, it) {
+    unmountAll();
+    setView('topic');
+    const box = $('#topicPage');
+    // the topic's handwritten page (created when you first write on it)
+    let note = it.noteId && Store.items.get(it.noteId);
+    if (!note) note = { id: uid(), kind: 'note', date: it.date || today(), subject: p.name, planId: p.id, topicId: it.id, topic: it.title, paper: lsGet('pp-paper', 'lines'), h: NOTE_H, strokes: [], created: Date.now() };
+    const wrap = el('div', {});
+    const granolaBox = el('div', {});
+    const syncMsg = el('span', { class: 'muted small' }, p.lastSync ? 'Last synced ' + new Date(p.lastSync).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
+    const paperSel = el('select', { 'aria-label': 'Paper' }, [['lines', 'Lined'], ['grid', 'Grid'], ['dots', 'Dots'], ['blank', 'Blank']].map(([v, l]) => el('option', { value: v, selected: note.paper === v ? true : null }, l)));
+    fill(box,
+      el('div', { class: 'notehead' },
+        el('a', { class: 'mini', href: '#plan/' + p.id }, '‹ ' + p.name),
+        el('span', { class: 'grow' }),
+        el('button', { class: 'pdate', title: 'Change the day', onclick: () => movePlanItems(p, [it], () => showTopic(p, it)) }, it.date ? fmt(it.date, { weekday: 'short', day: 'numeric', month: 'short' }) : 'No date'),
+        el('button', { class: 'mini' + (it.done ? ' primary' : ''), onclick: () => { toggleItem(p, it); showTopic(p, it); } }, it.done ? '✓ Done' : 'Mark as done')),
+      el('section', { class: 'card topic-head', style: `--sc:${p.color}` },
+        el('span', { class: 'sgname' }, p.name + (it.group ? ' · ' + it.group : '')),
+        el('h1', { class: 'evinfo-title' }, it.title)),
+      el('section', { class: 'card' },
+        el('div', { class: 'card-head' }, el('h2', {}, '✎ Written notes'),
+          el('span', { class: 'head-actions' }, paperSel,
+            el('button', { class: 'mini', onclick: () => { if (!note.strokes.length) { toast('Write something first.'); return; } Store.flushAll(); notesToPdf([note], it.title); } }, '⤓ PDF'))),
+        el('div', { class: 'page' }, wrap),
+        el('button', { class: 'mini more-space', onclick: () => { note.h = Math.min(NOTE_MAX, note.h + NOTE_GROW); if (Store.items.has(note.id)) Store.save(note); surface.layout(true); } }, '+ More space')),
+      el('section', { class: 'card' },
+        el('div', { class: 'card-head' }, el('h2', {}, '🎙 Granola recording'),
+          el('span', { class: 'head-actions' }, syncMsg, EMBED ? el('button', { class: 'mini primary', id: 'topicSync' }, '⟳ Sync with Granola') : null)),
+        el('p', { class: 'small muted' }, 'Record this study session in the Granola app. Give the note this topic\'s name (or say it at the start) and tap Sync: the recording\'s notes show up here.'),
+        el('div', { class: 'rec-controls' },
+          el('code', { class: 'copyname' }, it.title),
+          el('button', { class: 'mini', onclick: async () => { try { await navigator.clipboard.writeText(it.title); toast('Name copied. Paste it as the Granola note title.'); } catch { toast('Copy didn\'t work here: type the name in Granola.'); } } }, 'Copy name')),
+        granolaBox));
+    const surface = new Surface(wrap, note, {
+      paper: () => note.paper, grow: true,
+      onStroke: () => {
+        if (Store.items.has(note.id)) return;
+        Store.save(note);
+        it.noteId = note.id;
+        Store.save(p);
+      },
+      onChange: () => { if (Store.items.has(note.id)) Store.save(note); },
+    });
+    paperSel.onchange = () => { note.paper = paperSel.value; lsSet('pp-paper', note.paper); if (Store.items.has(note.id)) Store.save(note); surface.render(); };
+    drawTopicGranola(p, it, granolaBox);
+    const sb = box.querySelector('#topicSync');
+    if (sb) sb.onclick = async () => {
+      sb.disabled = true;
+      syncMsg.textContent = 'Syncing…';
+      try {
+        const r = await syncGranola(p, it);
+        syncMsg.textContent = r.linked ? `Found ${r.linked} new Granola note${r.linked === 1 ? '' : 's'}` : 'No new Granola notes for this topic';
+        drawTopicGranola(p, it, granolaBox, r.meetings);
+      } catch (err) {
+        console.warn(err);
+        syncMsg.textContent = connectorProblem(err, 'Granola', 'your Granola notes')[0];
+      } finally { sb.disabled = false; }
+    };
+    scrollTo(0, 0);
+  }
+  // Linked Granola notes, plus that day's other notes to link by hand
+  async function drawTopicGranola(p, it, box, meetings) {
+    const linked = it.granola || [];
+    const row = (m, extra) => {
+      const li = granolaItem({ upcoming: false, headers: [], ...m });
+      const when = li.querySelector('.when');
+      if (when && m.at) when.textContent = fmt(iso(new Date(m.at)), { day: 'numeric', month: 'short' });
+      if (extra) li.querySelector('.head-actions').append(extra);
+      return li;
+    };
+    fill(box,
+      linked.length ? el('ul', { class: 'glist' }, linked.map(m => row(m, el('button', { class: 'mini', title: 'Unlink', onclick: () => { it.granola = it.granola.filter(g => g.id !== m.id); Store.save(p); drawTopicGranola(p, it, box, meetings); } }, 'Unlink'))))
+        : el('p', { class: 'muted small' }, EMBED ? 'No Granola recording linked yet.' : 'Granola shows up when you open the planner inside Claude.'),
+      el('div', { class: 'gmore' }));
+    if (!EMBED) return;
+    const more = box.querySelector('.gmore');
+    try {
+      const day = it.date || today();
+      const list = meetings || await granolaDay(day);
+      if (!box.isConnected) return;
+      const others = list.filter(m => !m.upcoming && !linked.some(g => g.id === m.id) && (meetings ? topicScore(it, m) > 0 || iso(new Date(m.at)) === day : true)).slice(0, 8);
+      if (!others.length) return;
+      fill(more, el('h3', { class: 'subhead' }, meetings ? 'Other Granola notes that might belong here' : 'Granola notes from ' + fmt(day, { day: 'numeric', month: 'short' })),
+        el('ul', { class: 'glist' }, others.map(m => row(m, el('button', { class: 'mini primary', onclick: () => { linkGranola(it, m); Store.save(p); drawTopicGranola(p, it, box, meetings); } }, 'Link')))));
+    } catch { /* the sync button shows problems */ }
+  }
+
   // ---------- routing ----------
   // On GitHub Pages the address bar keeps the view (#day/2026-11-07), so Back works.
   // Inside Claude the hash can only hold plain names, so the view lives in memory.
@@ -2496,12 +2634,16 @@ function send(o) {
   }
 
   function route() {
-    const [view, arg] = currentPath().split('/');
+    const [view, arg, arg2] = currentPath().split('/');
     History.clear();
     $('.menu').open = false;
     if (view === 'note' && Store.items.has(arg)) { cleanup(arg); showNote(Store.items.get(arg)); return; }
     if (view === 'class' && Store.items.has(arg)) { cleanup(arg); showClass(Store.items.get(arg)); return; }
     if (view === 'plan' && Store.items.has(arg)) { cleanup(); showPlan(Store.items.get(arg)); return; }
+    if (view === 'topic' && Store.items.has(arg)) {
+      const pl = Store.items.get(arg), it = (pl.items || []).find(i => i.id === arg2);
+      if (it) { cleanup(); showTopic(pl, it); return; }
+    }
     if (recClass && Dict && Dict.active()) Dict.stop().catch(() => {});
     recClass = null;
     cleanup();
