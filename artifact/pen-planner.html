@@ -577,6 +577,19 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
 .notehead .grow { flex: 1; }
 .copyname { background: var(--soft); border-radius: 8px; padding: 6px 10px; font-size: 13px; overflow-wrap: anywhere; }
 .card-head select { border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; background: var(--surface); font-size: 14px; }
+.plancard-wrap { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.plancard-wrap .plancard { flex: 1; }
+.plancard-pdf { align-self: flex-start; }
+.plancard-pdf:disabled { opacity: .45; }
+
+/* ---------- picture of the day & gratitude ---------- */
+.dayphoto { display: block; width: 100%; max-height: 420px; object-fit: cover; border-radius: 12px; margin-top: 6px; background: var(--soft); }
+.caption { width: 100%; margin-top: 8px; border: 0; border-bottom: 1px dashed var(--line); background: none; padding: 6px 2px; font-size: 15px; font-style: italic; }
+.photo-empty { width: 100%; min-height: 200px; border: 2px dashed var(--line); border-radius: 12px; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-weight: 600; color: var(--muted); margin-top: 6px; }
+.photo-empty .plus { font-size: 34px; line-height: 1; color: #d08a12; }
+.gratpage { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin-top: 6px; }
+#gratCard p { margin: 0; }
+.mphoto { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
 
 </style>
 <header class="top">
@@ -649,6 +662,11 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
         </div>
         <div id="dayNotes" class="note-grid"></div>
       </section>
+
+      <div class="duo">
+        <section class="card" id="photoCard"></section>
+        <section class="card" id="gratCard"></section>
+      </div>
 
       <section class="card" id="nightCard"></section>
     </section>
@@ -1038,7 +1056,7 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
         if (d.kind === 'chunk') continue;
         const it = { ...d };
         delete it.k;
-        if (it.kind === 'task' || it.kind === 'note') {
+        if (typeof it.chunks === 'number' || it.kind === 'task' || it.kind === 'note') { // anything handwritten
           const ps = (parts.get(it.id) || []).sort((a, b) => a.i - b.i).slice(0, it.chunks || 0);
           it.strokes = ps.flatMap(p => p.s).map(decStroke);
           this.nChunks.set(it.id, it.chunks || 0);
@@ -1188,6 +1206,13 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
       ctx.setLineDash([6, 8]);
       ctx.beginPath(); ctx.moveTo(10, h * 0.74); ctx.lineTo(LW - 10, h * 0.74); ctx.stroke();
       ctx.setLineDash([]);
+    } else if (kind === 'gratitude') {
+      ctx.strokeStyle = '#e6dcc8';
+      ctx.beginPath();
+      for (let y = 100; y < h; y += 100) { ctx.moveTo(30, y); ctx.lineTo(LW - 30, y); }
+      ctx.stroke();
+      ctx.fillStyle = '#c9b48a'; ctx.font = '600 34px -apple-system, sans-serif';
+      for (let i = 0; i * 100 + 100 < h; i++) ctx.fillText(String(i + 1) + '.', 30, i * 100 + 88);
     } else if (kind === 'lines') {
       ctx.strokeStyle = '#dfe6f1';
       ctx.beginPath();
@@ -1483,14 +1508,17 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
   function cleanup(keepId) {
     for (const it of [...Store.items.values()]) {
       if (it.id === keepId) continue;
-      if (it.kind === 'task' && !it.strokes.length) Store.remove(it.id);
-      if (it.kind === 'note' && !it.strokes.length && !it.subject) Store.remove(it.id);
+      const inked = Array.isArray(it.strokes) && it.strokes.length > 0;
+      if (it.kind === 'task' && !inked) Store.remove(it.id);
+      if (it.kind === 'note' && !inked && !it.subject) Store.remove(it.id);
+      if (it.kind === 'gratitude' && !inked) Store.remove(it.id);
       if (it.kind === 'class' && !it.status && !hasNotes(it) && !it.gMoved && !it.gCancelled && (it.eventId || !it.title)) Store.remove(it.id);
     }
   }
 
   // Daily page
   function showDay(date) {
+    unmountAll();
     state.date = date;
     setView('day');
     const t = today();
@@ -1505,10 +1533,12 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
     renderStudyCard();
     renderTasks();
     renderDayNotes();
+    renderDayExtras();
   }
 
   function renderTasks() {
-    unmountAll();
+    // only the task lines are redrawn here; other writing areas on the day stay
+    mounted = mounted.filter(sf => { if (sf.wrap.closest('#taskList, #overdue')) { sf.destroy(); return false; } return true; });
     const date = state.date, list = $('#taskList'), over = $('#overdue');
     fill(list, );
     fill(over, );
@@ -1854,6 +1884,7 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
             open ? `${open} to do` : '✓ done') : null,
           nNotes ? el('span', { class: 'mn', title: `${nNotes} study note${nNotes === 1 ? '' : 's'}` }, `${nNotes} note${nNotes === 1 ? '' : 's'}`) : null,
           sItems.length ? el('span', { class: 'ms' + (sDone === sItems.length ? ' alldone' : ''), title: `Study plan: ${sDone} of ${sItems.length} done` }, sDone === sItems.length ? '✓ study' : `${sItems.length - sDone} study`) : null,
+          photoOf(d) ? el('img', { class: 'mphoto', src: photoSrc(photoOf(d)), alt: '' }) : null,
           d <= t ? el('span', { class: 'rps' }, pip('morning', d), pip('night', d)) : null);
         const cell = el('div', {
           class: 'mcell' + (d.slice(0, 7) !== month ? ' out' : '') + (d === t ? ' today' : ''),
@@ -3110,22 +3141,57 @@ function send(o) {
     const box = $('#studyOverview'), all = plans();
     fill(box,
       el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:#9b3fb5' }), 'Study plans'),
-        el('button', { class: 'mini primary', onclick: () => openPlanMaker() }, '+ New study plan')),
+        el('span', { class: 'head-actions' },
+          el('button', { class: 'mini', onclick: allNotesPdf }, '⤓ All notes PDF'),
+          el('button', { class: 'mini primary', onclick: () => openPlanMaker() }, '+ New study plan'))),
       all.length ? el('div', { class: 'plancards' }, all.map(p => {
         const s = planStats(p);
-        return el('a', { class: 'plancard', href: '#plan/' + p.id, style: `--sc:${p.color}` },
+        const nWritten = planPdfNotes(p).length;
+        return el('div', { class: 'plancard-wrap' }, el('a', { class: 'plancard', href: '#plan/' + p.id, style: `--sc:${p.color}` },
           el('strong', {}, p.name),
           p.goal ? el('span', { class: 'muted small' }, p.goal) : null,
           el('div', { class: 'sbar' }, el('span', { style: `width:${s.total ? (s.n / s.total * 100).toFixed(1) : 0}%` })),
           el('span', { class: 'small' }, `${s.n} of ${s.total} done` + (s.end ? ` · ends ${fmt(s.end, { day: 'numeric', month: 'short' })}` : '')),
           s.next ? el('span', { class: 'small muted' }, 'Next: ' + s.next.title + (s.next.date ? ' · ' + fmt(s.next.date, { weekday: 'short', day: 'numeric', month: 'short' }) : '')) : el('span', { class: 'small' }, 'Finished!'),
-          s.behind ? el('span', { class: 'st st-noshow' }, `${s.behind} behind`) : null);
+          s.behind ? el('span', { class: 'st st-noshow' }, `${s.behind} behind`) : null),
+          el('button', { class: 'mini plancard-pdf', disabled: nWritten ? null : true, title: nWritten ? 'Download this plan\'s written notes as a PDF' : 'No written notes yet', onclick: () => planPdf(p) },
+            nWritten ? `⤓ Notes PDF (${nWritten})` : '⤓ Notes PDF'));
       })) : el('p', { class: 'muted small' }, 'No study plans yet. Tap New study plan, paste or photograph what you need to study, and Claude organizes it into days.'));
   }
 
   // ---- one plan: overdue, next topics, all topics, notes ----
   const planNotes = p => Store.list('note').filter(n => (n.strokes.length || n.subject) && (n.planId === p.id || (n.subject || '').trim().toLowerCase() === p.name.trim().toLowerCase()))
     .sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
+  function planPdfNotes(p) {
+    const order = new Map((p.items || []).map((it, i) => [it.id, i]));
+    const notes = planNotes(p).filter(n => n.strokes.length);
+    const topicNotes = notes.filter(n => n.topicId && order.has(n.topicId)).sort((a, b) => order.get(a.topicId) - order.get(b.topicId));
+    const others = notes.filter(n => !topicNotes.includes(n)).sort((a, b) => a.date.localeCompare(b.date) || a.created - b.created);
+    return topicNotes.concat(others);
+  }
+  function planPdf(p) {
+    const list = planPdfNotes(p);
+    if (!list.length) { toast('No written notes in this plan yet. Open a topic and write with Apple Pencil.', 5000); return; }
+    Store.flushAll();
+    notesToPdf(list, p.name);
+  }
+
+  function allNotesPdf() {
+    const list = [], used = new Set();
+    for (const p of plans()) {
+      const ns = planPdfNotes(p);
+      if (!ns.length) continue;
+      const st = planStats(p);
+      list.push({ section: p.name, sub: `${ns.length} page${ns.length === 1 ? '' : 's'} of notes · ${st.n} of ${st.total} topics done` });
+      ns.forEach(n => { list.push(n); used.add(n.id); });
+    }
+    const rest = Store.list('note').filter(n => n.strokes.length && !used.has(n.id)).sort((a, b) => a.date.localeCompare(b.date) || a.created - b.created);
+    if (rest.length) { list.push({ section: 'Other study notes', sub: `${rest.length} note${rest.length === 1 ? '' : 's'}` }); list.push(...rest); }
+    if (!list.length) { toast('No written notes yet.', 4000); return; }
+    Store.flushAll();
+    notesToPdf(list, 'All study notes');
+  }
+
   function showPlan(p) {
     unmountAll();
     setView('plan');
@@ -3165,6 +3231,7 @@ function send(o) {
           el('div', { class: 'sbar' }, el('span', { style: `width:${s.total ? (s.n / s.total * 100).toFixed(1) : 0}%` })),
           el('span', { class: 'small' }, `${s.n} of ${s.total} topics done` + (s.end ? ` · ends ${fmt(s.end, { weekday: 'short', day: 'numeric', month: 'short' })}` : '') + ` · studies on ${(p.days || []).map(n => DOW_SHORT[n]).join(', ') || 'any day'}`)),
         el('div', { class: 'evinfo-actions' },
+          el('button', { class: 'mini primary', onclick: () => planPdf(p) }, '⤓ Notes PDF'),
           el('button', { class: 'mini', onclick: () => openPlanMaker(p) }, '✦ Reorganize with Claude'),
           el('button', { class: 'mini', onclick: () => addPlanItem(p) }, '+ Add topic'),
           el('button', { class: 'mini', onclick: () => { replanPlan(p, t); showPlan(p); toast('Plan laid out again from today'); } }, 'Replan from today'),
@@ -3197,7 +3264,7 @@ function send(o) {
       el('section', { class: 'card plan-sec' },
         el('div', { class: 'card-head' }, el('h2', {}, 'Notes'),
           el('span', { class: 'head-actions' },
-            notes.length ? el('button', { class: 'mini', onclick: () => notesToPdf(notes, p.name) }, '⤓ Download PDF') : null,
+            notes.length ? el('button', { class: 'mini', onclick: () => planPdf(p) }, '⤓ Notes PDF') : null,
             el('button', { class: 'mini primary', onclick: () => newNote(t, p.name, p.id) }, '+ New note'))),
         notes.length ? el('div', { class: 'note-grid' }, notes.map(n => noteCard(n, true))) : el('p', { class: 'muted small' }, 'No notes for this plan yet. Tap New note to write with Apple Pencil.')));
     scrollTo(0, 0);
@@ -3235,6 +3302,15 @@ function send(o) {
       const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 28;
       let first = true;
       for (const n of notes) {
+        if (n.section) { // a title page for a plan
+          if (!first) doc.addPage();
+          first = false;
+          doc.setFontSize(26); doc.setTextColor(43, 42, 40);
+          doc.text(doc.splitTextToSize(n.section, W - 2 * M), M, H / 2 - 20);
+          doc.setFontSize(12); doc.setTextColor(119, 115, 107);
+          if (n.sub) doc.text(n.sub, M, H / 2 + 14);
+          continue;
+        }
         // only as many pages as the writing needs
         let bottom = 0;
         n.strokes.forEach(st => { for (let i = 1; i < st.pts.length; i += 3) bottom = Math.max(bottom, st.pts[i]); });
@@ -3245,16 +3321,19 @@ function send(o) {
           const h = Math.min(PAGE_H, (n.h || NOTE_H) - top);
           if (top === 0) {
             doc.setFontSize(13); doc.setTextColor(43, 42, 40);
-            doc.text(`${n.subject || 'Study note'} · ${fmt(n.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`, M, M + 8);
+            doc.text(doc.splitTextToSize(n.topic || n.subject || 'Study note', W - 2 * M)[0], M, M + 8);
+            doc.setFontSize(9); doc.setTextColor(119, 115, 107);
+            doc.text([n.topic ? n.subject : '', fmt(n.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })].filter(Boolean).join(' · '), M, M + 21);
           }
           const img = renderSlice(n, top, h, 1.6).toDataURL('image/jpeg', 0.85);
-          const y0 = top === 0 ? M + 20 : M, avail = H - y0 - M;
+          const y0 = top === 0 ? M + 32 : M, avail = H - y0 - M;
           const w = Math.min(W - 2 * M, avail * LW / h);
           doc.addImage(img, 'JPEG', (W - w) / 2, y0, w, w * h / LW);
         }
       }
       const blob = doc.output('blob');
-      const filename = `${(title || 'Study notes').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80)} notes.pdf`;
+      const base = (title || 'Study notes').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80);
+      const filename = /notes$/i.test(base) ? base + '.pdf' : base + ' notes.pdf';
       if (EMBED) {
         const dl = await window.claude.use('downloads').catch(() => null);
         if (!dl) { toast('Downloading isn\'t available here.', 5000); return; }
@@ -3553,6 +3632,86 @@ function send(o) {
     } catch { /* the sync button shows problems */ }
   }
 
+  // ---------- picture of the day & gratitude ----------
+  const photoOf = date => Store.items.get('photo-' + date);
+  const photoSrc = ph => ph ? (ph.assetId ? '/_blob/' + ph.assetId : ph.dataUrl || '') : '';
+  let Assets;
+  const assetsNs = () => Assets !== undefined ? Promise.resolve(Assets)
+    : (EMBED ? window.claude.use('assets').catch(() => null) : Promise.resolve(null)).then(a => (Assets = a || null));
+
+  // Shrink a photo before saving it (and turn iPhone/iPad photos into JPEG)
+  async function shrinkPhoto(file, max, quality) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('That photo couldn\'t be opened.')); i.src = url; });
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', quality));
+      return { blob, dataUrl: c.toDataURL('image/jpeg', quality) };
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function setPhoto(date, file) {
+    const old = photoOf(date);
+    toast('Saving your picture…', 3000);
+    try {
+      const a = await assetsNs();
+      let rec;
+      if (a) {
+        const { blob } = await shrinkPhoto(file, 1600, 0.82);
+        const up = await a.upload(blob);
+        rec = { id: 'photo-' + date, kind: 'photo', date, assetId: up.id, caption: old ? old.caption || '' : '' };
+      } else {
+        const { dataUrl } = await shrinkPhoto(file, 1000, 0.75);
+        rec = { id: 'photo-' + date, kind: 'photo', date, dataUrl, caption: old ? old.caption || '' : '' };
+      }
+      Store.save(rec);
+      if (old && old.assetId && a) a.delete(old.assetId).catch(() => {});
+      toast('Picture saved');
+    } catch (e) {
+      console.warn(e);
+      toast(e && e.code === 'too_large' ? 'That photo is too big. Try a smaller one.' : (e && e.message && !e.code ? e.message : 'Couldn\'t save the picture. Try again.'), 6000);
+    }
+    renderDayExtras();
+  }
+  async function removePhoto(date) {
+    const ph = photoOf(date);
+    if (!ph || !(await ask('Remove the picture of the day?', 'Remove'))) return;
+    Store.remove(ph.id);
+    if (ph.assetId) { const a = await assetsNs(); if (a) a.delete(ph.assetId).catch(() => {}); }
+    renderDayExtras();
+  }
+
+  function renderDayExtras() {
+    const date = state.date;
+    // picture
+    const pc = $('#photoCard'), ph = photoOf(date);
+    const input = el('input', { type: 'file', accept: 'image/*', hidden: true, onchange: e => { const f = e.target.files[0]; if (f) setPhoto(date, f); } });
+    const caption = el('input', { class: 'caption', placeholder: 'Say something about it (optional)', value: ph ? ph.caption || '' : '', 'aria-label': 'Caption' });
+    caption.oninput = () => { const cur = photoOf(date); if (cur) { cur.caption = caption.value; Store.save(cur); } };
+    fill(pc,
+      el('div', { class: 'card-head' }, el('h2', {}, '📷 Picture of the day'),
+        ph ? el('span', { class: 'head-actions' },
+          el('button', { class: 'mini', onclick: () => input.click() }, 'Change'),
+          el('button', { class: 'icon-btn sm', title: 'Remove picture', 'aria-label': 'Remove picture', onclick: () => removePhoto(date) }, '×')) : null),
+      input,
+      ph ? [el('img', { class: 'dayphoto', src: photoSrc(ph), alt: ph.caption || 'Picture of the day' }), caption]
+        : el('button', { class: 'photo-empty', onclick: () => input.click() }, el('span', { class: 'plus' }, '+'), el('span', {}, 'Add a picture'), el('span', { class: 'muted small' }, 'Take a photo or choose one')));
+    // gratitude (handwritten)
+    const gc = $('#gratCard');
+    let g = Store.items.get('grat-' + date);
+    if (!g) g = { id: 'grat-' + date, kind: 'gratitude', date, strokes: [], created: Date.now() };
+    const strip = el('div', { class: 'gratpage' });
+    fill(gc, el('div', { class: 'card-head' }, el('h2', {}, '🙏 Gratitude')),
+      el('p', { class: 'muted small' }, 'Today I\'m grateful for…'), strip);
+    new Surface(strip, g, {
+      h: 330, paper: 'gratitude',
+      onStroke: () => { if (!Store.items.has(g.id)) Store.save(g); },
+      onChange: () => { if (Store.items.has(g.id)) Store.save(g); },
+    });
+  }
+
   // ---------- routing ----------
   // On GitHub Pages the address bar keeps the view (#day/2026-11-07), so Back works.
   // Inside Claude the hash can only hold plain names, so the view lives in memory.
@@ -3639,6 +3798,8 @@ function send(o) {
           (['task', 'note'].includes(it.kind) && Array.isArray(it.strokes) && isDate(it.date)) ||
           (it.kind === 'routine-day' && isDate(it.date) && it.done && typeof it.done === 'object') ||
           (it.kind === 'class' && isDate(it.date)) ||
+          (it.kind === 'gratitude' && isDate(it.date) && Array.isArray(it.strokes)) ||
+          (it.kind === 'photo' && isDate(it.date)) ||
           (it.kind === 'plan' && isDate(it.date) && Array.isArray(it.items)) ||
           (it.kind === 'config' && it.id.startsWith('cfg-')));
         if (!ok) continue;
