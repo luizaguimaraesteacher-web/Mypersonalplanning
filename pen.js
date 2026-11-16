@@ -1707,8 +1707,8 @@ function send(o) {
     const cal = (Cals.list || []).find(c => c.id === ev.calId);
     const ro = !!(cal && (cal.role === 'reader' || cal.role === 'freeBusyReader'));
     const rec = Store.items.get(classKey(ev)), done = !!(rec && rec.status === 'happened');
-    const act = (cls, label, title, fn, off) => el('button', { class: 'evact ' + cls, title: off ? 'This calendar is view-only for your connected Google account' : title, disabled: off ? true : null,
-      onclick: e => { e.stopPropagation(); toggleSwipe(li, false); fn(); } }, label);
+    const act = (cls, label, title, fn, off) => el('button', { class: 'evact ' + cls + (off ? ' off' : ''), title: off ? 'This calendar is view-only for your connected Google account' : title, 'aria-disabled': off ? 'true' : null,
+      onclick: e => { e.stopPropagation(); toggleSwipe(li, false); if (off) { readOnlyHelp(cal); return; } fn(); } }, label);
     return el('div', { class: 'evacts' },
       act('move', '⏱ Move', 'Find another time', () => openMoveEvent(ev), ro),
       act('allday', '↦ All-day', 'Make it an all-day event that doesn\'t block time', () => makeAllDay(ev), ro),
@@ -1720,6 +1720,12 @@ function send(o) {
         renderCalendar();
       }),
       act('del', '🗑 Delete', 'Delete from Google Calendar', () => deleteEventFlow(ev, false), ro));
+  }
+
+  // Why Move / All-day / Delete can't change this calendar, and how to fix it
+  function readOnlyHelp(cal) {
+    const name = cal ? cal.label : 'This calendar';
+    ask(`"${name}" is view-only for the Google account connected to Claude, so the planner can't move, change or delete its events. To fix it: open Google Calendar with the account that owns "${name}", go to ⋮ → Settings and sharing → Share with specific people, and give your connected account "Make changes to events". Then tap ↻ on the calendar. (✓ Done still works: it's saved in the planner.)`, 'OK');
   }
 
   const EVENTS_NEXT = 3;
