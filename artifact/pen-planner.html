@@ -777,6 +777,16 @@ button.adchip { cursor: pointer; }
 .steps .row select.stepdays { flex: 0 0 auto; }
 .steps .row input:not(.stepmins) { flex: 1 1 160px; min-width: 0; }
 
+/* conflicts: solved / move */
+.clashbar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 4px 0 2px 98px; }
+.clashbar .mini { padding: 3px 10px; font-size: 12px; background: var(--surface); }
+.events.timed > li.past .clashbar .mini { padding: 1px 8px; font-size: 11px; }
+@media (max-width: 620px) { .clashbar { padding-left: 18px; } }
+/* multi-day bookings in the all-day row */
+.adchip small { color: var(--muted); font-size: 10px; }
+.adgroup { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; }
+.adfix { border: 1px dashed var(--line); background: var(--surface); border-radius: 4px; padding: 1px 6px; font: inherit; font-size: 11px; color: var(--accent); cursor: pointer; white-space: nowrap; }
+
 </style>
 <header class="top">
     <a class="brand" href="#day">✎ Pen Planner</a>
@@ -1034,6 +1044,26 @@ button.adchip { cursor: pointer; }
   </div>
 
   <!-- EDIT ROUTINE -->
+  <!-- MOVE AN EVENT -->
+  <dialog id="moveEvDlg">
+    <form method="dialog" class="dlg" autocomplete="off">
+      <h2>Move “<span id="mvTitle"></span>”</h2>
+      <p id="mvWhen" class="small muted"></p>
+      <p class="small">Free times with the same length (tap one to move it in Google Calendar):</p>
+      <div id="mvSlots" class="ftbox"></div>
+      <h3 class="subhead">Or choose a day and time</h3>
+      <div class="evrow">
+        <label class="small"><b>Day</b><input type="date" id="mvDay" /></label>
+        <label class="small"><b>Time</b><input type="time" id="mvTime" step="300" /></label>
+      </div>
+      <p id="mvMsg" class="small err-text" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="mvCancel">Cancel</button>
+        <button type="button" class="mini primary" id="mvGo">Move</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- FIND A TIME FOR A HABIT -->
   <dialog id="findDlg">
     <form method="dialog" class="dlg" autocomplete="off">
@@ -2191,6 +2221,76 @@ button.adchip { cursor: pointer; }
   }
 
 
+
+  // ---------- move an event (in Google Calendar too) ----------
+  let movingEvent = null;
+  // Free start times between from/to hours on the given days for an event of length len
+  function freeSlots(days, len, events, win, max, skipId) {
+    const busy = events.filter(e => !e.allDay && !e.multiDay && !e.free && e.end > e.start && e.id !== skipId).map(e => [e.start - 5 * 60e3, e.end + 5 * 60e3]);
+    return days.map(d => {
+      const at = (hh, mm) => new Date(`${d}T${pad(hh)}:${pad(mm)}:00`).getTime();
+      let t = Math.max(at(...win[0]), Math.ceil((Date.now() + 10 * 60e3) / 9e5) * 9e5);
+      const end = at(...win[1]), slots = [];
+      while (t + len <= end && slots.length < max) {
+        const hit = busy.find(([a, b]) => a < t + len && t < b);
+        if (hit) { t = Math.ceil(hit[1] / 9e5) * 9e5; continue; }
+        slots.push(t);
+        t += Math.max(len, 60 * 60e3);
+      }
+      return [d, slots];
+    });
+  }
+  async function openMoveEvent(ev) {
+    movingEvent = ev;
+    const len = ev.end > ev.start ? ev.end - ev.start : 36e5;
+    $('#mvTitle').textContent = ev.title || 'Event';
+    $('#mvWhen').textContent = `Now: ${fmt(iso(new Date(ev.start)), { weekday: 'long', month: 'short', day: 'numeric' })}, ${timeOf(ev.start)} – ${timeOf(ev.start + len)}`;
+    $('#mvDay').value = iso(new Date(ev.start)); $('#mvTime').value = hm(ev.start);
+    $('#mvMsg').textContent = '';
+    const cal = (Cals.list || []).find(c => c.id === ev.calId);
+    const readOnly = cal && (cal.role === 'reader' || cal.role === 'freeBusyReader');
+    $('#mvGo').disabled = !!readOnly;
+    if (readOnly) $('#mvMsg').textContent = `"${cal.label}" is view-only for the Google account connected to Claude, so it can only be moved in Google Calendar (or after it's shared with "Make changes to events").`;
+    $('#moveEvDlg').showModal();
+    const box = $('#mvSlots');
+    if (readOnly) { fill(box); return; }
+    fill(box, el('p', { class: 'muted small' }, 'Looking for free times…'));
+    const from = iso(new Date(ev.start)) > today() ? iso(new Date(ev.start)) : today();
+    try {
+      const events = visibleEvents(await fetchEvents(from, addDays(from, 3)));
+      if (movingEvent !== ev) return;
+      const days = freeSlots([0, 1, 2].map(k => addDays(from, k)), len, events, [[7, 0], [22, 0]], 5, ev.id).filter(([, sl]) => sl.length);
+      fill(box, days.length ? days.map(([d, sl]) => el('div', { class: 'ftday' },
+        el('h3', {}, d === today() ? 'Today' : d === addDays(today(), 1) ? 'Tomorrow' : fmt(d, { weekday: 'long', day: 'numeric', month: 'short' })),
+        el('div', { class: 'ftslots' }, sl.map(t => el('button', { class: 'mini slot', onclick: () => moveEventTo(ev, t) }, `${timeOf(t)} – ${timeOf(t + len)}`)))))
+        : el('p', { class: 'muted small' }, 'No free time found in the next 3 days. Pick a day and time below.'));
+    } catch (err) { if (movingEvent === ev) fill(box, el('p', { class: 'small' }, connectorProblem(err)[0])); }
+  }
+  async function moveEventTo(ev, t) {
+    const len = ev.end > ev.start ? ev.end - ev.start : 36e5, msg = $('#mvMsg');
+    msg.textContent = 'Moving it in Google Calendar…';
+    $('#moveEvDlg').querySelectorAll('button.slot, #mvGo').forEach(b => { b.disabled = true; });
+    try {
+      await calCall('update_event', { eventId: ev.id, notificationLevel: 'NONE', startTime: localStamp(t), endTime: localStamp(t + len), ...(ev.calId ? { calendarId: ev.calId } : {}) });
+      // the event's notes in the planner follow it
+      const rec = Store.items.get(classKey(ev));
+      if (rec) { rec.start = t; rec.end = t + len; rec.date = iso(new Date(t)); rec.gMoved = false; rec.gMovedTo = 0; Store.save(rec); }
+      $('#moveEvDlg').close();
+      toast(`Moved to ${fmt(iso(new Date(t)), { weekday: 'short', month: 'short', day: 'numeric' })}, ${timeOf(t)}. Guests aren't emailed.`, 4500);
+      afterEventChange(iso(new Date(t)));
+    } catch (err) {
+      console.warn(err);
+      msg.textContent = eventProblem(err);
+      $('#moveEvDlg').querySelectorAll('button.slot, #mvGo').forEach(b => { b.disabled = false; });
+    }
+  }
+  $('#mvGo').addEventListener('click', () => {
+    const d = $('#mvDay').value, tm = $('#mvTime').value;
+    if (!isDate(d) || !/^\d\d:\d\d$/.test(tm)) { $('#mvMsg').textContent = 'Pick the new day and time.'; return; }
+    if (movingEvent) moveEventTo(movingEvent, new Date(`${d}T${tm}:00`).getTime());
+  });
+  $('#mvCancel').addEventListener('click', () => $('#moveEvDlg').close());
+
   // ---------- find a time for a habit ----------
   const daysText = days => { const k = days.join(','); const f = DAY_SETS.find(([v]) => v === k); return f ? f[1] : days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', '); };
   let findCtx = null;
@@ -2229,23 +2329,9 @@ button.adchip { cursor: pointer; }
     try { events = visibleEvents(await fetchEvents(ctx.date, addDays(ctx.date, 3))); }
     catch (err) { if (findCtx === ctx) fill(box, el('p', { class: 'small' }, connectorProblem(err)[0])); return; }
     if (findCtx !== ctx) return;
-    const busy = events.filter(e => !e.allDay && e.end > e.start).map(e => [e.start - 5 * 60e3, e.end + 5 * 60e3]);
     const win = ctx.which === 'morning' ? [[6, 30], [12, 0]] : [[17, 0], [23, 0]];
-    const days = [];
-    for (let k = 0; k < 3; k++) {
-      const d = addDays(ctx.date, k);
-      if (!stepOn(ctx.step, d) && ctx.step.days) continue;
-      const at = (hh, mm) => new Date(`${d}T${pad(hh)}:${pad(mm)}:00`).getTime();
-      let t = Math.max(at(...win[0]), Math.ceil((Date.now() + 10 * 60e3) / 9e5) * 9e5);
-      const end = at(...win[1]), slots = [];
-      while (t + len <= end && slots.length < 4) {
-        const hit = busy.find(([a, b]) => a < t + len && t < b);
-        if (hit) { t = Math.ceil(hit[1] / 9e5) * 9e5; continue; }
-        slots.push(t);
-        t += Math.max(len, 60 * 60e3); // spread the suggestions out
-      }
-      days.push([d, slots]);
-    }
+    const list = [0, 1, 2].map(k => addDays(ctx.date, k)).filter(d => !ctx.step.days || stepOn(ctx.step, d));
+    const days = freeSlots(list, len, events, win, 4);
     if (!days.some(([, sl]) => sl.length)) {
       fill(box, el('p', { class: 'small' }, `No free ${mins} minutes in the ${ctx.which === 'morning' ? 'mornings' : 'evenings'} of the next 3 days. Try a shorter time.`));
       return;
@@ -2440,7 +2526,10 @@ function send(o) {
       const allDay = !s.dateTime;
       const start = allDay ? (isDate(s.date) ? parse(s.date).getTime() : 0) : Date.parse(s.dateTime);
       const end = allDay ? (isDate(f.date) ? parse(f.date).getTime() : start + 864e5) : (f.dateTime ? Date.parse(f.dateTime) : start);
-      return { id: typeof e.id === 'string' ? e.id : '', title: e.summary || '', allDay, location: e.location || '', description: typeof e.description === 'string' ? e.description : '', start, end };
+      // free = doesn't block time; multiDay = a timed event over several days (hotel, car rental): shown with the all-day ones
+      const free = e.transparency === 'transparent' || e.availability === 'AVAILABILITY_FREE';
+      const multiDay = !allDay && end - start >= 6 * 36e5 && iso(new Date(start)) !== iso(new Date(end - 1));
+      return { id: typeof e.id === 'string' ? e.id : '', title: e.summary || '', allDay, free, multiDay, location: e.location || '', description: typeof e.description === 'string' ? e.description : '', start, end };
     }).sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
     out.accessRole = role;
     return out;
@@ -2830,27 +2919,55 @@ function send(o) {
   }
 
   const EVENTS_NEXT = 3;
+  const clashId = (a, b) => [a.id || 't' + a.start, b.id || 't' + b.start].sort().join('|') + '|' + Math.min(a.start, b.start);
+  function solveClash(ev, others) {
+    const ok = Config.get('clashOk', []).concat(others.map(o => clashId(ev, o)));
+    Config.set('clashOk', [...new Set(ok)].slice(-300));
+    toast('Marked as solved.');
+    renderCalendar();
+  }
+  // Hotel or car rental saved as one long timed event: make it all-day (and free), so it stays in the calendar without blocking time.
+  async function makeAllDay(ev) {
+    const first = iso(new Date(ev.start)), last = iso(new Date(ev.end - 1));
+    if (!(await ask(`Make "${ev.title || 'this event'}" an all-day event from ${fmt(first, { month: 'short', day: 'numeric' })} to ${fmt(last, { month: 'short', day: 'numeric' })}? It stays in your Google Calendar but won't block your time.`, 'Make all-day'))) return;
+    const base = { eventId: ev.id, notificationLevel: 'NONE', ...(ev.calId ? { calendarId: ev.calId } : {}) };
+    try {
+      await calCall('update_event', { ...base, allDay: true, startTime: first + 'T00:00:00', endTime: addDays(last, 1) + 'T00:00:00', availability: 'AVAILABILITY_FREE' });
+      toast('Changed to an all-day event in Google Calendar.');
+    } catch (err) {
+      console.warn(err);
+      // someone else organises it (a booking site): at least stop it blocking time
+      try { await calCall('update_event', { ...base, availability: 'AVAILABILITY_FREE' }); toast('Google only lets the organiser change its days, so it\'s now set to not block your time.', 6000); }
+      catch (err2) { console.warn(err2); toast(eventProblem(err), 6000); return; }
+    }
+    afterEventChange(first);
+  }
+
   function drawEvents(body, events) {
     if (!events.length) { fill(body, el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
     const now = Date.now();
     const okColor = c => /^#[0-9a-f]{3,8}$/i.test(c || '') ? c : null;
     // all-day events: one row of small labels
-    const allDay = events.filter(ev => ev.allDay), timed = events.filter(ev => !ev.allDay);
+    const allDay = events.filter(ev => ev.allDay || ev.multiDay), timed = events.filter(ev => !ev.allDay && !ev.multiDay);
     const dayRow = allDay.length ? el('div', { class: 'allday-row' }, el('span', { class: 'when' }, 'All day'),
       allDay.map(ev => {
         const style = okColor(ev.color) ? `--ec:${ev.color}` : null, label = ev.busy ? 'Busy' : ev.title || '(No title)';
-        return EMBED && ev.id && !ev.busy
-          ? el('button', { class: 'adchip', style, title: 'Edit this event', onclick: () => openEventEditor(ev) }, label)
-          : el('span', { class: 'adchip', style }, label);
+        const span = ev.multiDay ? ` · ${fmt(iso(new Date(ev.start)), { month: 'short', day: 'numeric' })} – ${fmt(iso(new Date(ev.end - 1)), { month: 'short', day: 'numeric' })}` : '';
+        const chip = EMBED && ev.id && !ev.busy
+          ? el('button', { class: 'adchip', style, title: label + span + ' · edit', onclick: () => openEventEditor(ev) }, label, span ? el('small', {}, span) : null)
+          : el('span', { class: 'adchip', style, title: label + span }, label, span ? el('small', {}, span) : null);
+        return ev.multiDay && EMBED && ev.id && !ev.busy
+          ? el('span', { class: 'adgroup' }, chip, el('button', { class: 'adfix', title: 'Change it to an all-day event that doesn\'t block your time (it stays in your calendar)', onclick: () => makeAllDay(ev) }, '↦ Make all-day'))
+          : chip;
       })) : null;
     // what already happened: smaller; the next three: bigger; the rest behind the arrow
     const past = timed.filter(ev => ev.end && ev.end < now), rest = timed.filter(ev => !(ev.end && ev.end < now));
     const next = new Set(rest.slice(0, EVENTS_NEXT));
     const shown = new Set([...past, ...next]);
     // events that overlap in time
-    const clash = new Map();
+    const clash = new Map(), solved = new Set(Config.get('clashOk', []));
     timed.forEach((a, x) => timed.forEach((b, y) => {
-      if (x === y) return;
+      if (x === y || a.free || b.free || a.busy && b.busy || solved.has(clashId(a, b))) return;
       const aEnd = a.end > a.start ? a.end : a.start + 1, bEnd = b.end > b.start ? b.end : b.start + 1;
       if (a.start < bEnd && b.start < aEnd) { if (!clash.has(a)) clash.set(a, []); clash.get(a).push(b); }
     }));
@@ -2864,13 +2981,16 @@ function send(o) {
         el('span', { class: 'evtitle' },
           el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
           rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status)) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
-        sub ? el('span', { class: 'evsub' }, sub) : null,
-        others ? el('span', { class: 'clashtag' }, '⚠ Same time as ' + others.map(o => o.busy ? 'a busy slot' : `"${o.title || 'another event'}"`).join(', ')) : null];
+        sub ? el('span', { class: 'evsub' }, sub) : null];
       return el('li', { class: (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, timeOf(ev.start)),
         ev.busy ? el('span', { class: 'what', title: 'This calendar only shares when you are busy' }, what)
           : el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what, el('span', { class: 'chev', 'aria-hidden': 'true' }, '›')),
+        others ? el('div', { class: 'clashbar' },
+          el('span', { class: 'clashtag' }, '⚠ Same time as ' + others.map(o => o.busy ? 'a busy slot' : `"${o.title || 'another event'}"`).join(', ')),
+          el('button', { class: 'mini', title: 'It\'s fine: stop flagging these two', onclick: () => solveClash(ev, others) }, '✓ Solved'),
+          EMBED && ev.id && !ev.busy ? el('button', { class: 'mini', onclick: () => openMoveEvent(ev) }, 'Move…') : null) : null,
         ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
     });

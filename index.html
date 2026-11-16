@@ -272,6 +272,26 @@
   </div>
 
   <!-- EDIT ROUTINE -->
+  <!-- MOVE AN EVENT -->
+  <dialog id="moveEvDlg">
+    <form method="dialog" class="dlg" autocomplete="off">
+      <h2>Move “<span id="mvTitle"></span>”</h2>
+      <p id="mvWhen" class="small muted"></p>
+      <p class="small">Free times with the same length (tap one to move it in Google Calendar):</p>
+      <div id="mvSlots" class="ftbox"></div>
+      <h3 class="subhead">Or choose a day and time</h3>
+      <div class="evrow">
+        <label class="small"><b>Day</b><input type="date" id="mvDay" /></label>
+        <label class="small"><b>Time</b><input type="time" id="mvTime" step="300" /></label>
+      </div>
+      <p id="mvMsg" class="small err-text" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="mvCancel">Cancel</button>
+        <button type="button" class="mini primary" id="mvGo">Move</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- FIND A TIME FOR A HABIT -->
   <dialog id="findDlg">
     <form method="dialog" class="dlg" autocomplete="off">

@@ -774,3 +774,13 @@ button.adchip { cursor: pointer; }
 .steps .row input.stepmins { flex: 0 0 72px; }
 .steps .row select.stepdays { flex: 0 0 auto; }
 .steps .row input:not(.stepmins) { flex: 1 1 160px; min-width: 0; }
+
+/* conflicts: solved / move */
+.clashbar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 4px 0 2px 98px; }
+.clashbar .mini { padding: 3px 10px; font-size: 12px; background: var(--surface); }
+.events.timed > li.past .clashbar .mini { padding: 1px 8px; font-size: 11px; }
+@media (max-width: 620px) { .clashbar { padding-left: 18px; } }
+/* multi-day bookings in the all-day row */
+.adchip small { color: var(--muted); font-size: 10px; }
+.adgroup { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; }
+.adfix { border: 1px dashed var(--line); background: var(--surface); border-radius: 4px; padding: 1px 6px; font: inherit; font-size: 11px; color: var(--accent); cursor: pointer; white-space: nowrap; }
