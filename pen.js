@@ -1046,7 +1046,7 @@ function send(o) {
     const mcp = await window.claude.use('mcp').catch(() => null);
     if (!mcp) throw { code: 'no_mcp' };
     const list = [];
-    let pageToken;
+    let pageToken, role = '';
     for (let page = 0; page < 5; page++) {
       const input = { startTime: from + 'T00:00:00', endTime: to + 'T00:00:00', orderBy: 'startTime', pageSize: 250 };
       if (calendarId) input.calendarId = calendarId;
@@ -1054,16 +1054,19 @@ function send(o) {
       const res = await mcp.callTool('Google Calendar', 'list_events', input, force ? { cache: false } : undefined);
       const pl = (res && res.payload) || {};
       if (Array.isArray(pl.events)) list.push(...pl.events);
+      if (typeof pl.accessRole === 'string') role = pl.accessRole;
       pageToken = typeof pl.nextPageToken === 'string' && pl.nextPageToken ? pl.nextPageToken : null;
       if (!pageToken) break;
     }
-    return list.filter(e => e && e.status !== 'cancelled').map(e => {
+    const out = list.filter(e => e && e.status !== 'cancelled').map(e => {
       const s = e.start || {}, f = e.end || {};
       const allDay = !s.dateTime;
       const start = allDay ? (isDate(s.date) ? parse(s.date).getTime() : 0) : Date.parse(s.dateTime);
       const end = allDay ? (isDate(f.date) ? parse(f.date).getTime() : start + 864e5) : (f.dateTime ? Date.parse(f.dateTime) : start);
       return { id: typeof e.id === 'string' ? e.id : '', title: e.summary || '', allDay, location: e.location || '', description: typeof e.description === 'string' ? e.description : '', start, end };
     }).sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
+    out.accessRole = role;
+    return out;
   }
   // The days (YYYY-MM-DD) an event shows on. All-day events end the day before `end`.
   function eventDays(ev) {
@@ -1138,7 +1141,9 @@ function send(o) {
       const c = cals[i];
       if (r.status === 'fulfilled') {
         // a calendar shared as "free/busy only" gives times without names
-        if (r.value.length && r.value.every(e => !e.title && !e.description && !e.location)) c.busyOnly = true;
+        if (r.value.accessRole === 'freeBusyReader') c.busyOnly = true;
+        else if (r.value.accessRole) c.busyOnly = false;
+        else if (r.value.length && r.value.every(e => !e.title && !e.description && !e.location)) c.busyOnly = true;
         else if (r.value.some(e => e.title)) c.busyOnly = false;
         r.value.forEach(e => events.push({ ...e, calId: c.id, color: c.color, busy: !!c.busyOnly && !e.title }));
       }
