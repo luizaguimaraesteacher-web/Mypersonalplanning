@@ -1758,7 +1758,9 @@ function send(o) {
     // what already happened: smaller; the next three: bigger; the rest behind the arrow
     const past = timed.filter(ev => ev.end && ev.end < now), rest = timed.filter(ev => !(ev.end && ev.end < now));
     const next = new Set(rest.slice(0, EVENTS_NEXT));
-    const shown = new Set([...past, ...next]);
+    // on a day that's over, everything shows; otherwise what already happened is folded away
+    const allPast = !rest.length;
+    const shown = new Set(allPast ? past : next);
     // events that overlap in time
     const clash = new Map(), solved = new Set(Config.get('clashOk', []));
     timed.forEach((a, x) => timed.forEach((b, y) => {
@@ -1777,7 +1779,8 @@ function send(o) {
           el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
           rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status)) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
         sub ? el('span', { class: 'evsub' }, sub) : null];
-      const li = el('li', { class: 'swipe ' + (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true });
+      const isPast = ev.end && ev.end < now;
+      const li = el('li', { class: 'swipe ' + (isPast ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : isPast ? ' earlier' : ' more'), hidden: shown.has(ev) ? null : true });
       const row = el('div', { class: 'evrow' },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, timeOf(ev.start)),
@@ -1796,7 +1799,7 @@ function send(o) {
       return li;
     });
     const clashCount = [...clash.keys()].filter(e => !(e.end && e.end < now)).length;
-    const later = timed.length - shown.size;
+    const later = rest.length - next.size, earlierN = allPast ? 0 : past.length;
     const list = timed.length ? el('ul', { class: 'events timed' }, items) : null;
     const moreBtn = later ? el('button', {
       class: 'mini evmore', onclick: e => {
@@ -1807,8 +1810,16 @@ function send(o) {
     }) : null;
     const moreText = `▾ ${later} more event${later === 1 ? '' : 's'}`;
     if (moreBtn) moreBtn.textContent = moreText;
+    const earlierText = `▸ ${earlierN} earlier event${earlierN === 1 ? '' : 's'} (already happened)`;
+    const earlierBtn = earlierN ? el('button', {
+      class: 'mini evmore evearlier', onclick: e => {
+        const open = e.currentTarget.classList.toggle('open');
+        list.querySelectorAll('li.earlier').forEach(li => { li.hidden = !open; });
+        e.currentTarget.textContent = open ? '▾ Hide earlier events' : earlierText;
+      },
+    }, earlierText) : null;
     const clashNote = clashCount ? el('p', { class: 'clashnote' }, `⚠ ${clashCount} events at the same time: check the ones marked below.`) : null;
-    fill(body, clashNote, dayRow, list, moreBtn);
+    fill(body, clashNote, dayRow, earlierBtn, list, moreBtn);
   }
 
   async function renderCalendar(force) {
