@@ -46,7 +46,7 @@
   }
 
   // Any error is shown on screen (iPad has no console), so a problem can be reported instead of buttons silently doing nothing.
-  const BUILD = 'b28';
+  const BUILD = 'b30';
   let errShown = 0;
   function showErr(where, err) {
     console.warn(where, err);
@@ -101,7 +101,8 @@
       let last = '';
       for (;;) {
         const snap = await this.coll.where('k', '>', last).orderBy('k').limit(500).get();
-        for (const d of snap.docs) docs.push(d.data());
+        // the database hands back read-only (frozen) objects: keep our own editable copies, or Safari refuses every change
+        for (const d of snap.docs) docs.push(JSON.parse(JSON.stringify(d.data())));
         if (snap.size < 500) break;
         last = snap.docs[snap.size - 1].data().k;
       }
