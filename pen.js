@@ -46,7 +46,7 @@
   }
 
   // Any error is shown on screen (iPad has no console), so a problem can be reported instead of buttons silently doing nothing.
-  const BUILD = 'b30';
+  const BUILD = 'b31';
   let errShown = 0;
   function showErr(where, err) {
     console.warn(where, err);
@@ -157,7 +157,7 @@
           for (let i = 0; i < chunks.length; i++) {
             const key = id + '~' + i, sig = JSON.stringify(chunks[i]);
             if (this.sigs.get(key) === sig) continue;
-            await this.coll.doc(key).set({ k: key, kind: 'chunk', part: id, i, s: chunks[i] });
+            await this.coll.doc(key).set(JSON.parse(JSON.stringify({ k: key, kind: 'chunk', part: id, i, s: chunks[i] })));
             this.sigs.set(key, sig);
           }
           for (let i = chunks.length; i < (this.nChunks.get(id) || 0); i++) {
@@ -169,7 +169,8 @@
         }
         const sig = JSON.stringify(meta);
         if (this.sigs.get(id) === sig) return;
-        await this.coll.doc(id).set(meta);
+        // the database locks (freezes) what it is given: give it a copy, never the planner's own objects
+        await this.coll.doc(id).set(JSON.parse(sig));
         this.sigs.set(id, sig);
       });
     },
