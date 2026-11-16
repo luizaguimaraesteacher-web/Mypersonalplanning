@@ -45,6 +45,28 @@
     toastTimer = setTimeout(() => t.classList.remove('show'), ms);
   }
 
+  // Any error is shown on screen (iPad has no console), so a problem can be reported instead of buttons silently doing nothing.
+  const BUILD = 'b28';
+  let errShown = 0;
+  function showErr(where, err) {
+    console.warn(where, err);
+    if (/ResizeObserver loop/.test(String((err && err.message) || err))) return;
+    if (errShown++ > 4) return;
+    const msg = (err && (err.message || err.code)) || String(err);
+    if (/ResizeObserver loop/.test(msg)) return; // harmless browser notice
+    let bar = document.getElementById('errBar');
+    if (!bar) {
+      bar = el('div', { id: 'errBar', role: 'alert' });
+      document.body.append(bar);
+    }
+    bar.append(el('p', {}, `⚠ ${where}: ${msg}`));
+    bar.onclick = () => { bar.remove(); errShown = 0; };
+  }
+  addEventListener('error', e => showErr('Error', e.error || e.message));
+  addEventListener('unhandledrejection', e => showErr('Error', e.reason));
+  { const v = document.getElementById('buildTag'); if (v) v.textContent = 'Pen Planner · version ' + BUILD; }
+  const safely = (where, fn) => { try { return fn(); } catch (e) { showErr(where, e); } };
+
   // Running as a Claude artifact? Then data goes to the artifact's database
   // (saved in the user's Claude account) and the calendar comes through the
   // Google Calendar connector. Otherwise (GitHub Pages, a local file) data
@@ -567,14 +589,14 @@
     $('#dayDate').textContent = fmt(date, { month: 'long', day: 'numeric', year: 'numeric' });
     $('#dayRel').textContent = date === t ? 'Today' : date === addDays(t, -1) ? 'Yesterday' : date === addDays(t, 1) ? 'Tomorrow' : '';
     $('#datePick').value = date;
-    renderRoutineCard('morning');
-    renderRoutineCard('night');
-    renderCalendar();
-    renderStudyCard();
-    renderTasks();
-    renderDayNotes();
-    renderDayExtras();
-    renderMoneyCard();
+    safely('Morning routine', () => renderRoutineCard('morning'));
+    safely('Night routine', () => renderRoutineCard('night'));
+    safely('Calendar', () => renderCalendar());
+    safely('Study plan', () => renderStudyCard());
+    safely('Tasks', () => renderTasks());
+    safely('Notebooks', () => renderDayNotes());
+    safely('Photo & gratitude', () => renderDayExtras());
+    safely('Money', () => renderMoneyCard());
   }
 
   function renderTasks() {
@@ -862,7 +884,10 @@
     morning: { title: 'Morning routine', icon: '☀︎', cls: 'sun' },
     night: { title: 'Night routine', icon: '☾', cls: 'moon' },
   };
-  const routines = () => Config.get('routines', DEFAULT_ROUTINES);
+  const routines = () => {
+    const r = Config.get('routines', DEFAULT_ROUTINES) || {};
+    return { morning: Array.isArray(r.morning) ? r.morning : DEFAULT_ROUTINES.morning, night: Array.isArray(r.night) ? r.night : DEFAULT_ROUTINES.night };
+  };
   const stepOn = (st, date) => !Array.isArray(st.days) || !st.days.length || st.days.includes(parse(date).getDay());
   const stepsOn = (which, date) => routines()[which].filter(st => stepOn(st, date));
   // Once: swap the old sample routines for the skincare / meal prep / reading / study routines.
@@ -3551,7 +3576,8 @@ function send(o) {
     });
   }
 
-  function route() {
+  function route() { safely('Opening the page', routeInner); }
+  function routeInner() {
     const [view, arg, arg2] = currentPath().split('/');
     History.clear();
     $('.menu').open = false;
@@ -3639,5 +3665,13 @@ function send(o) {
 
   if (!EMBED && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-  Store.init().then(() => { seedStudyPlan(); migrateStudy(); migrateRoutines(); migrateNotebooks(); route(); });
+  Store.init()
+    .catch(e => showErr('Loading', e))
+    .then(() => {
+      safely('Study plan setup', seedStudyPlan);
+      safely('Study plan update', migrateStudy);
+      safely('Routines update', migrateRoutines);
+      safely('Notebooks update', migrateNotebooks);
+      route();
+    });
 })();
