@@ -759,25 +759,44 @@
   };
 
   // ---------- morning & night routines ----------
+  // Each step can have the minutes it takes (used by "Find a time") and the weekdays it's for (0 = Sunday).
   const DEFAULT_ROUTINES = {
     morning: [
-      { id: 'm1', label: 'Drink a glass of water' }, { id: 'm2', label: 'Make the bed' },
-      { id: 'm3', label: 'Stretch for 5 minutes' }, { id: 'm4', label: "Look over today's tasks" },
+      { id: 'm-water', label: 'Drink a big glass of water', mins: 5 },
+      { id: 'm-skin', label: 'Morning skincare: cleanse, moisturiser, sunscreen', mins: 10 },
+      { id: 'm-breakfast', label: 'Eat a real breakfast (from my meal prep)', mins: 20 },
+      { id: 'm-lunch', label: 'Pack lunch, snacks and a water bottle', mins: 10 },
+      { id: 'm-plan', label: "Look over today's calendar and tasks", mins: 5 },
+      { id: 'm-study', label: 'Study for 30 minutes', mins: 30 },
     ],
     night: [
-      { id: 'n1', label: 'Tidy up my desk' }, { id: 'n2', label: "Get tomorrow's things ready" },
-      { id: 'n3', label: 'Review my study notes' }, { id: 'n4', label: 'Screens off and read' },
+      { id: 'n-dinner', label: 'Eat a home-made dinner', mins: 30 },
+      { id: 'n-food', label: "Check tomorrow's meals are ready", mins: 10 },
+      { id: 'n-mealprep', label: 'Weekly meal prep: plan, shop and cook', mins: 120, days: [0] },
+      { id: 'n-skin', label: 'Night skincare: remove makeup, cleanse, treatment, moisturiser', mins: 10 },
+      { id: 'n-read', label: 'Read for 20 minutes, no screens', mins: 20 },
+      { id: 'n-top3', label: "Pick tomorrow's top 3 tasks", mins: 5 },
     ],
   };
+  const OLD_DEFAULT_IDS = 'm1,m2,m3,m4|n1,n2,n3,n4';
+  const DAY_SETS = [['', 'Every day'], ['1,2,3,4,5', 'Weekdays'], ['0,6', 'Weekends'], ['0', 'Sundays'], ['6', 'Saturdays'], ['1', 'Mondays']];
   const RT = {
     morning: { title: 'Morning routine', icon: '☀︎', cls: 'sun' },
     night: { title: 'Night routine', icon: '☾', cls: 'moon' },
   };
   const routines = () => Config.get('routines', DEFAULT_ROUTINES);
+  const stepOn = (st, date) => !Array.isArray(st.days) || !st.days.length || st.days.includes(parse(date).getDay());
+  const stepsOn = (which, date) => routines()[which].filter(st => stepOn(st, date));
+  // Once: swap the old sample routines for the skincare / meal prep / reading / study routines.
+  function migrateRoutines() {
+    if (Config.get('routinesV', 1) >= 2) return;
+    Config.set('routines', DEFAULT_ROUTINES);
+    Config.set('routinesV', 2);
+  }
   const logOf = date => Store.items.get('rt-' + date);
   const isDone = (date, id) => { const l = logOf(date); return !!(l && l.done[id]); };
-  const doneCount = (which, date) => routines()[which].filter(i => isDone(date, i.id)).length;
-  const fullDay = (which, date) => { const it = routines()[which]; return it.length > 0 && doneCount(which, date) === it.length; };
+  const doneCount = (which, date) => stepsOn(which, date).filter(i => isDone(date, i.id)).length;
+  const fullDay = (which, date) => { const it = stepsOn(which, date); return it.length > 0 && doneCount(which, date) === it.length; };
 
   function toggleStep(date, id) {
     const l = logOf(date) || { id: 'rt-' + date, kind: 'routine-day', date, done: {} };
@@ -796,13 +815,13 @@
 
   function renderRoutineCard(which) {
     const card = $('#' + which + 'Card');
-    const items = routines()[which], date = state.date, info = RT[which];
+    const date = state.date, items = stepsOn(which, date), info = RT[which];
     const done = doneCount(which, date);
     const week = [];
     for (let i = 6; i >= 0; i--) {
-      const d = addDays(date, -i), c = doneCount(which, d);
+      const d = addDays(date, -i), c = doneCount(which, d), n = stepsOn(which, d).length;
       week.push(el('a', { href: '#day/' + d, class: d === date ? 'cur' : '', title: fmt(d, { weekday: 'long', month: 'short', day: 'numeric' }) },
-        el('span', { class: 'pip' + (items.length && c === items.length ? ' full' : c ? ' part' : '') }),
+        el('span', { class: 'pip' + (n && c === n ? ' full' : c ? ' part' : '') }),
         fmt(d, { weekday: 'narrow' })));
     }
     const s = streak(which);
@@ -815,11 +834,12 @@
           el('button', {
             class: 'rcheck' + (isDone(date, i.id) ? ' on' : ''), 'aria-pressed': String(isDone(date, i.id)),
             onclick: () => { toggleStep(date, i.id); renderRoutineCard(which); if (fullDay(which, date)) toast(`${info.title} done! ${streakText(streak(which))}`); },
-          }, el('span', { class: 'box' }), el('span', { class: 'label' }, i.label)))))
+          }, el('span', { class: 'box' }), el('span', { class: 'label' }, i.label, i.days && i.days.length ? el('small', { class: 'muted' }, ' · ' + daysText(i.days)) : null)))))
         : el('p', { class: 'muted small' }, 'No steps yet. Tap Edit to add some.'),
       el('div', { class: 'routine-foot' },
         el('div', { class: 'week' }, week),
         el('span', { class: 'streak' + (s ? ' hot' : '') }, streakText(s)),
+        EMBED && date >= today() && done < items.length ? el('button', { class: 'mini', title: 'Find a free time in your calendar for a step you haven\'t done', onclick: () => openFindTime(which, items.find(i => !isDone(date, i.id)), date) }, '⏱ Find a time') : null,
         el('button', { class: 'mini', onclick: () => editRoutine(which) }, 'Edit')));
   }
 
@@ -834,6 +854,10 @@
     const list = $('#routineSteps');
     fill(list, ...editing.steps.map((s, i) => el('li', {}, el('div', { class: 'row' },
       el('input', { value: s.label, placeholder: 'e.g. Drink water', 'aria-label': 'Step ' + (i + 1), oninput: e => { s.label = e.target.value; } }),
+      el('select', { class: 'stepdays', 'aria-label': 'Which days', onchange: e => { s.days = e.target.value ? e.target.value.split(',').map(Number) : undefined; } },
+        DAY_SETS.concat(s.days && s.days.length && !DAY_SETS.some(([v]) => v === s.days.join(',')) ? [[s.days.join(','), daysText(s.days)]] : [])
+          .map(([v, label]) => el('option', { value: v, selected: v === (s.days || []).join(',') ? true : null }, label))),
+      el('input', { class: 'stepmins', type: 'number', min: '5', max: '240', step: '5', value: s.mins || '', placeholder: 'min', title: 'Minutes it takes', 'aria-label': 'Minutes', oninput: e => { s.mins = Math.max(0, Math.min(240, parseInt(e.target.value, 10) || 0)) || undefined; } }),
       el('button', { type: 'button', class: 'icon-btn sm', title: 'Move up', 'aria-label': 'Move up', disabled: i === 0,
         onclick: () => { editing.steps.splice(i - 1, 0, editing.steps.splice(i, 1)[0]); drawSteps(); } }, '↑'),
       el('button', { type: 'button', class: 'icon-btn sm', title: 'Remove', 'aria-label': 'Remove step',
@@ -848,7 +872,12 @@
   $('#routineCancel').addEventListener('click', () => $('#routineDlg').close());
   $('#routineSave').addEventListener('click', () => {
     const all = { ...routines() };
-    all[editing.which] = editing.steps.map(s => ({ id: s.id, label: s.label.trim() })).filter(s => s.label);
+    all[editing.which] = editing.steps.map(s => {
+      const o = { id: s.id, label: s.label.trim() };
+      if (s.mins) o.mins = s.mins;
+      if (s.days && s.days.length) o.days = s.days;
+      return o;
+    }).filter(s => s.label);
     Config.set('routines', all);
     $('#routineDlg').close();
     route();
@@ -864,13 +893,17 @@
     fill(box, ...['morning', 'night'].map(which => {
       const items = routines()[which], info = RT[which];
       const fullLast = n => dates.slice(-n).filter(d => fullDay(which, d)).length;
-      const pct = items.length ? Math.round(100 * dates.reduce((a, d) => a + doneCount(which, d), 0) / (items.length * N)) : 0;
+      const possible = dates.reduce((a, d) => a + stepsOn(which, d).length, 0);
+      const pct = possible ? Math.round(100 * dates.reduce((a, d) => a + doneCount(which, d), 0) / possible) : 0;
       const grid = el('div', { class: 'track-grid', style: `grid-template-columns:${cols}` });
       grid.append(el('span'), ...dates.map(d => el('span', { class: 'dh' + (d === t ? ' today' : '') },
         fmt(d, { weekday: 'narrow' }), el('br'), String(parse(d).getDate()))));
       for (const it of items) {
-        grid.append(el('span', { class: 'lbl', title: it.label }, it.label));
+        grid.append(el('span', { class: 'lbl', title: it.label },
+          EMBED ? el('button', { class: 'findbtn', title: 'Find a time for this', 'aria-label': 'Find a time for ' + it.label, onclick: () => openFindTime(which, it, t) }, '⏱') : null,
+          el('span', {}, it.label)));
         for (const d of dates) {
+          if (!stepOn(it, d)) { grid.append(el('span', { class: 'cell off', title: 'Not a day for this step' })); continue; }
           grid.append(el('button', {
             class: 'cell' + (isDone(d, it.id) ? ' on' : ''), title: `${it.label} · ${fmt(d, { month: 'short', day: 'numeric' })}`,
             'aria-label': `${it.label}, ${fmt(d, { month: 'long', day: 'numeric' })}, ${isDone(d, it.id) ? 'done' : 'not done'}`,
@@ -881,14 +914,16 @@
       if (items.length) {
         grid.append(el('span', { class: 'lbl all' }, 'Whole routine'));
         for (const d of dates) {
-          const c = doneCount(which, d);
-          grid.append(el('span', { class: 'cell' + (c === items.length ? ' on' : c ? ' part' : '') }));
+          const c = doneCount(which, d), n = stepsOn(which, d).length;
+          grid.append(el('span', { class: 'cell' + (n && c === n ? ' on' : c ? ' part' : '') }));
         }
       }
       return el('section', { class: 'card track-card ' + which },
         el('div', { class: 'card-head' },
           el('h2', {}, el('span', { class: 'ico ' + info.cls }, info.icon), info.title),
-          el('button', { class: 'mini', onclick: () => editRoutine(which) }, 'Edit steps')),
+          el('span', { class: 'head-actions' },
+            EMBED ? el('button', { class: 'mini', onclick: () => openFindTime(which, stepsOn(which, t).find(i => !isDone(t, i.id)) || items[0], t) }, '⏱ Find a time') : null,
+            el('button', { class: 'mini', onclick: () => editRoutine(which) }, 'Edit steps'))),
         el('div', { class: 'stats' },
           el('span', {}, el('b', {}, String(streak(which))), 'day streak'),
           el('span', {}, el('b', {}, `${fullLast(7)}/7`), 'full days this week'),
@@ -896,6 +931,91 @@
           el('span', {}, el('b', {}, pct + '%'), 'of steps done')),
         items.length ? el('div', { class: 'track' }, grid) : el('p', { class: 'muted small' }, 'No steps yet.'));
     }));
+  }
+
+
+  // ---------- find a time for a habit ----------
+  const daysText = days => { const k = days.join(','); const f = DAY_SETS.find(([v]) => v === k); return f ? f[1] : days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', '); };
+  let findCtx = null;
+  async function openFindTime(which, step, date) {
+    if (!EMBED) return;
+    const all = [...routines().morning.map(s => ['morning', s]), ...routines().night.map(s => ['night', s])];
+    findCtx = { which, step: step || all[0][1], date: date && date >= today() ? date : today() };
+    fill($('#ftStep'), [['morning', 'Morning routine'], ['night', 'Night routine']].map(([w, label]) => el('optgroup', { label },
+      routines()[w].map(s => el('option', { value: w + '|' + s.id, selected: s.id === findCtx.step.id ? true : null }, s.label)))));
+    $('#ftMins').value = String(findCtx.step.mins || 30);
+    $('#ftMsg').textContent = '';
+    let cals = [];
+    try { cals = await calendarList(); } catch { /* none */ }
+    const h = hiddenCals(), ok = cals.filter(c => c.writable && !c.busyOnly && c.role !== 'reader' && c.role !== 'freeBusyReader').sort((a, b) => h.has(a.id) - h.has(b.id));
+    const pick = ok.find(c => !h.has(c.id) && c.id === Config.get('lastCal', null)) || ok.find(c => !h.has(c.id)) || ok[0];
+    fill($('#ftCal'), ok.map(c => el('option', { value: c.id, selected: pick && c.id === pick.id ? true : null }, c.label)));
+    $('#findDlg').showModal();
+    drawSlots();
+  }
+  $('#ftStep').addEventListener('change', e => {
+    const [w, id] = e.target.value.split('|');
+    const st = routines()[w].find(s => s.id === id);
+    if (!st) return;
+    findCtx.which = w; findCtx.step = st;
+    $('#ftMins').value = String(st.mins || 30);
+    drawSlots();
+  });
+  $('#ftMins').addEventListener('change', () => drawSlots());
+  $('#ftClose').addEventListener('click', () => $('#findDlg').close());
+
+  // Free times over the next 3 days: mornings for morning steps, evenings for night steps, never before 6:30 or after 23:00.
+  async function drawSlots() {
+    const ctx = findCtx, box = $('#ftSlots'), mins = parseInt($('#ftMins').value, 10) || 30, len = mins * 60e3;
+    fill(box, el('p', { class: 'muted small' }, 'Looking at your calendar…'));
+    let events;
+    try { events = visibleEvents(await fetchEvents(ctx.date, addDays(ctx.date, 3))); }
+    catch (err) { if (findCtx === ctx) fill(box, el('p', { class: 'small' }, connectorProblem(err)[0])); return; }
+    if (findCtx !== ctx) return;
+    const busy = events.filter(e => !e.allDay && e.end > e.start).map(e => [e.start - 5 * 60e3, e.end + 5 * 60e3]);
+    const win = ctx.which === 'morning' ? [[6, 30], [12, 0]] : [[17, 0], [23, 0]];
+    const days = [];
+    for (let k = 0; k < 3; k++) {
+      const d = addDays(ctx.date, k);
+      if (!stepOn(ctx.step, d) && ctx.step.days) continue;
+      const at = (hh, mm) => new Date(`${d}T${pad(hh)}:${pad(mm)}:00`).getTime();
+      let t = Math.max(at(...win[0]), Math.ceil((Date.now() + 10 * 60e3) / 9e5) * 9e5);
+      const end = at(...win[1]), slots = [];
+      while (t + len <= end && slots.length < 4) {
+        const hit = busy.find(([a, b]) => a < t + len && t < b);
+        if (hit) { t = Math.ceil(hit[1] / 9e5) * 9e5; continue; }
+        slots.push(t);
+        t += Math.max(len, 60 * 60e3); // spread the suggestions out
+      }
+      days.push([d, slots]);
+    }
+    if (!days.some(([, sl]) => sl.length)) {
+      fill(box, el('p', { class: 'small' }, `No free ${mins} minutes in the ${ctx.which === 'morning' ? 'mornings' : 'evenings'} of the next 3 days. Try a shorter time.`));
+      return;
+    }
+    fill(box, days.filter(([, sl]) => sl.length).map(([d, sl]) => el('div', { class: 'ftday' },
+      el('h3', {}, d === today() ? 'Today' : d === addDays(today(), 1) ? 'Tomorrow' : fmt(d, { weekday: 'long', day: 'numeric', month: 'short' })),
+      el('div', { class: 'ftslots' }, sl.map(t => el('button', { class: 'mini slot', onclick: () => bookSlot(ctx, t, len) }, `${timeOf(t)} – ${timeOf(t + len)}`))))));
+  }
+  async function bookSlot(ctx, t, len) {
+    const msg = $('#ftMsg'), calId = $('#ftCal').value;
+    const local = ms => { const x = new Date(ms); return `${iso(x)}T${pad(x.getHours())}:${pad(x.getMinutes())}:00`; };
+    const title = 'Focus: ' + ctx.step.label;
+    const input = { summary: title, startTime: local(t), endTime: local(t + len), description: `Time for your ${ctx.which} routine step "${ctx.step.label}". Scheduled from Pen Planner.` };
+    if (calId) input.calendarId = calId;
+    msg.textContent = 'Adding it to your calendar…';
+    $('#ftSlots').querySelectorAll('button').forEach(b => { b.disabled = true; });
+    try {
+      await calCall('create_event', input);
+      Config.set('lastCal', calId || '');
+      $('#findDlg').close();
+      toast(`Scheduled ${fmt(iso(new Date(t)), { weekday: 'short' })} ${timeOf(t)}: ${ctx.step.label}`, 4000);
+      afterEventChange(iso(new Date(t)));
+    } catch (err) {
+      console.warn(err);
+      msg.textContent = eventProblem(err);
+      $('#ftSlots').querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
   }
 
   // ---------- month calendar ----------
@@ -1156,6 +1276,7 @@ function send(o) {
       const c = cals[i];
       if (r.status === 'fulfilled') {
         // a calendar shared as "free/busy only" gives times without names
+        if (r.value.accessRole) c.role = r.value.accessRole;
         if (r.value.accessRole === 'freeBusyReader') c.busyOnly = true;
         else if (r.value.accessRole) c.busyOnly = false;
         else if (r.value.length && r.value.every(e => !e.title && !e.description && !e.location)) c.busyOnly = true;
@@ -1699,9 +1820,9 @@ function send(o) {
     const granolaBox = el('div', {});
     fill(card,
       el('div', { class: 'card-head' },
-        el('h2', {}, el('span', { class: 'dot', style: 'background:#b22133' }), 'Classes & notes'),
+        el('h2', {}, el('span', { class: 'dot', style: 'background:#b22133' }), 'Events & notes'),
         el('span', { class: 'head-actions' },
-          el('button', { class: 'mini', onclick: () => newClass(date) }, '+ Class notes'),
+          el('button', { class: 'mini', onclick: () => newClass(date) }, '+ Notes'),
           EMBED ? el('button', { class: 'icon-btn sm', title: 'Refresh Granola notes', 'aria-label': 'Refresh Granola notes', onclick: () => renderClassCard(true) }, '↻') : null)),
       recs.length ? el('ul', { class: 'classlist' }, recs.map(c => el('li', {},
         el('a', { href: '#class/' + c.id },
@@ -1709,7 +1830,7 @@ function send(o) {
           el('strong', {}, c.title || 'Class'),
           c.status ? el('span', { class: 'st st-' + c.status }, statusLabel(c.status)) : null,
           c.granola && c.granola.url ? el('span', { class: 'muted small' }, '· in Granola') : null)))) :
-        el('p', { class: 'muted small' }, 'Tap a class in your calendar (or + Class notes) to keep how it went, what you covered and the homework. Record the class itself in Granola: its notes show up here.'),
+        el('p', { class: 'muted small' }, 'Tap an event in your calendar (or + Notes) to keep how it went, what you covered and what comes next. Record it in Granola: its notes show up here.'),
       EMBED ? granolaBox : null);
     if (!EMBED) return;
     fill(granolaBox, el('h3', { class: 'subhead' }, 'Granola notes'), el('p', { class: 'muted small' }, 'Loading your Granola notes…'));
@@ -3190,5 +3311,5 @@ function send(o) {
 
   if (!EMBED && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-  Store.init().then(() => { seedStudyPlan(); migrateStudy(); route(); });
+  Store.init().then(() => { seedStudyPlan(); migrateStudy(); migrateRoutines(); route(); });
 })();

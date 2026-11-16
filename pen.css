@@ -758,3 +758,19 @@ button.adchip { cursor: pointer; }
 .events.timed .what .evtitle .st-moved { color: #5b4b9a; }
 .events.timed .what .evtitle .st-cancelled { color: var(--muted); }
 .events.timed .what .clashtag { color: #9a5b00; }
+
+/* find a time */
+.ftbox { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow: auto; }
+.ftday h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--task); }
+.ftslots { display: flex; flex-wrap: wrap; gap: 6px; }
+.slot { font-variant-numeric: tabular-nums; }
+.findbtn { border: 0; background: none; padding: 0 4px 0 0; font-size: 13px; cursor: pointer; }
+.track-grid .lbl { display: flex; align-items: center; min-width: 0; }
+.track-grid .lbl > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell.off { background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line) 3px 4px); border-color: transparent; }
+#routineSteps .row { flex-wrap: wrap; }
+.stepdays { flex: none; width: auto; max-width: 120px; }
+.stepmins { flex: none; width: 70px !important; }
+.steps .row input.stepmins { flex: 0 0 72px; }
+.steps .row select.stepdays { flex: 0 0 auto; }
+.steps .row input:not(.stepmins) { flex: 1 1 160px; min-width: 0; }

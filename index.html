@@ -272,10 +272,29 @@
   </div>
 
   <!-- EDIT ROUTINE -->
+  <!-- FIND A TIME FOR A HABIT -->
+  <dialog id="findDlg">
+    <form method="dialog" class="dlg" autocomplete="off">
+      <h2>⏱ Find a time</h2>
+      <p class="small muted">Pick a free time and the planner adds it to your Google Calendar, so that time is kept for it.</p>
+      <label class="small"><b>What for</b><select id="ftStep"></select></label>
+      <div class="evrow">
+        <label class="small"><b>How long</b><select id="ftMins">
+          <option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option>
+          <option value="45">45 min</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option><option value="180">3 hours</option>
+        </select></label>
+        <label class="small"><b>Add to calendar</b><select id="ftCal"></select></label>
+      </div>
+      <div id="ftSlots" class="ftbox"></div>
+      <p id="ftMsg" class="small err-text" role="status"></p>
+      <div class="dlg-actions"><button type="button" class="mini" id="ftClose">Close</button></div>
+    </form>
+  </dialog>
+
   <dialog id="routineDlg">
     <form method="dialog" class="dlg">
       <h2 id="routineDlgTitle">Morning routine</h2>
-      <p class="muted small">The steps you want to do every day, in order.</p>
+      <p class="muted small">The steps, in order. For each one, pick the days it is for and how many minutes it takes (⏱ Find a time uses that).</p>
       <ol id="routineSteps" class="steps"></ol>
       <button type="button" class="mini" id="addStep">+ Add a step</button>
       <div class="dlg-actions">
