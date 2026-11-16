@@ -810,3 +810,6 @@ button.adchip { cursor: pointer; }
 .events.timed > li.past.swipe > .evrow > .what, .events.timed > li.past.swipe > .evrow > .when, .events.timed > li.past.swipe > .evrow > .cdot { opacity: .6; }
 .evdots { display: block !important; }
 .events.timed > li.swipe .chev { display: none !important; }
+.hidelist li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hidelist li span { font-weight: 600; }
+#hideAdd { flex: none; margin-bottom: 2px; }

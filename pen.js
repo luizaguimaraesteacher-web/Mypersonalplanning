@@ -1308,6 +1308,10 @@ function send(o) {
     if (!tag) return;
     let seed;
     try { seed = JSON.parse(tag.textContent); } catch { return; }
+    if (seed && Array.isArray(seed.hide) && !Config.get('hideSeeded', false)) {
+      Config.set('hideWords', [...new Set([...Config.get('hideWords', []), ...seed.hide.map(String)])]);
+      Config.set('hideSeeded', true);
+    }
     if (!seed || !Array.isArray(seed.show) || Config.get('calSeeded', 0) >= (seed.version || 1)) return;
     const want = seed.show.map(x => String(x).toLowerCase());
     const match = c => want.some(w => (c.name + ' ' + c.id).toLowerCase().includes(w));
@@ -1349,11 +1353,15 @@ function send(o) {
     events.failed = failed;
     return events;
   }
+  // Events whose name contains one of these words are left out (e.g. classes of another teacher).
+  const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const hideWords = () => Config.get('hideWords', []).map(fold).filter(Boolean);
   // Hidden calendars are left out, and the same event on two calendars (same name and time) shows once.
   const visibleEvents = events => {
-    const h = hiddenCals(), seen = new Set(), out = [];
+    const h = hiddenCals(), seen = new Set(), out = [], words = hideWords();
     for (const e of events) {
       if (h.has(e.calId)) continue;
+      if (words.length && e.title) { const t = fold(e.title); if (words.some(w => t.includes(w))) continue; }
       const key = (e.title || '').trim().toLowerCase() + '|' + e.start + '|' + e.end;
       if (e.title && seen.has(key)) continue;
       seen.add(key);
@@ -1384,6 +1392,7 @@ function send(o) {
   async function openCalendars(onChange) {
     calsChanged = onChange;
     $('#acId').value = ''; $('#acName').value = ''; $('#acMsg').textContent = '';
+    drawHideWords();
     await drawCalendarList();
     $('#calsDlg').showModal();
   }
@@ -1398,6 +1407,19 @@ function send(o) {
         el('span', { class: 'sw' }), el('span', {}, c.label, c.added ? el('small', { class: 'muted' }, ' · added by you') : null, c.busyOnly ? el('small', { class: 'busytag' }, ' · shares only busy times') : null)),
       c.added ? el('button', { class: 'mini', onclick: () => removeExtraCal(c.id) }, 'Remove') : null)));
   }
+  function drawHideWords() {
+    fill($('#hideList'), Config.get('hideWords', []).map(w => el('li', {},
+      el('span', {}, w),
+      el('button', { type: 'button', class: 'mini', onclick: () => { Config.set('hideWords', Config.get('hideWords', []).filter(x => x !== w)); drawHideWords(); if (calsChanged) calsChanged(); } }, 'Show again'))));
+  }
+  $('#hideAdd').addEventListener('click', () => {
+    const w = $('#hideWord').value.trim();
+    if (!w) return;
+    Config.set('hideWords', [...new Set([...Config.get('hideWords', []), w])]);
+    $('#hideWord').value = '';
+    drawHideWords();
+    if (calsChanged) calsChanged();
+  });
   function removeExtraCal(id) {
     Config.set('extraCals', Config.get('extraCals', []).filter(x => x.id !== id));
     Cals.list = null;
