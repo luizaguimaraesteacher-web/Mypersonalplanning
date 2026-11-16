@@ -1970,6 +1970,17 @@ function send(o) {
     if (r && r.payload && typeof r.payload === 'object') return r.payload;
     return ((r && r.content) || []).filter(c => c && c.type === 'text').map(c => c.text).join('\n');
   }
+  // Opens a new note in the Granola app (granola://new-document) and copies the name to give it.
+  const GRANOLA_NEW = 'granola://new-document?creation_source=Pen%20Planner';
+  function granolaStartLink(name) {
+    return el('a', {
+      class: 'mini primary granola-start', href: GRANOLA_NEW, target: '_blank', rel: 'noopener',
+      onclick: () => {
+        try { navigator.clipboard.writeText(name).catch(() => {}); } catch { /* not allowed here */ }
+        toast(`Opening Granola… Paste "${name}" as the note title (it's copied), then start recording. If Granola doesn't open, open the app and tap New note.`, 8000);
+      },
+    }, '● Record in Granola');
+  }
   const granolaUrl = u => /^https:\/\/notes\.granola\.ai\/[\w\-/]+$/.test(u || '') ? u : '';
   // Granola answers with tagged text; read it as HTML (never shown as HTML, only via textContent).
   function parseGranolaMeetings(text) {
@@ -2247,7 +2258,8 @@ function send(o) {
     $('#classHomework').placeholder = cls ? 'What the student should do before next class' : 'What I need to do after this (and by when)';
     document.querySelector('#view-class .lastcard').hidden = !cls;
     const what = cls ? 'class' : 'meeting';
-    $('#granolaHint').textContent = `Record the ${what} in the Granola app. Its notes show up here (tap ↻ afterwards if they don't yet).`;
+    $('#granolaHint').textContent = `Tap Record in Granola when the ${what} starts. Its notes show up here afterwards (tap ↻ if they don't yet).`;
+    fill($('#granolaStartBox'), granolaStartLink(c.gTitle || c.title || (cls ? 'Class' : 'Meeting')));
     bind('#classTitle', 'title', () => { if (cls) renderLastClass(c); });
     bind('#classTranscript', 'transcript', drawGranolaSend);
     bind('#classCovered', 'covered');
@@ -3093,6 +3105,7 @@ function send(o) {
           el('span', { class: 'head-actions' }, syncMsg, EMBED ? el('button', { class: 'mini primary', id: 'topicSync' }, '⟳ Sync with Granola') : null)),
         el('p', { class: 'small muted' }, 'Record this study session in the Granola app. Give the note this topic\'s name (or say it at the start) and tap Sync: the recording\'s notes show up here.'),
         el('div', { class: 'rec-controls' },
+          granolaStartLink(it.title),
           el('code', { class: 'copyname' }, it.title),
           el('button', { class: 'mini', onclick: async () => { try { await navigator.clipboard.writeText(it.title); toast('Name copied. Paste it as the Granola note title.'); } catch { toast('Copy didn\'t work here: type the name in Granola.'); } } }, 'Copy name')),
         granolaBox));

@@ -817,3 +817,5 @@ button.adchip { cursor: pointer; }
 .kindbtn { flex: none; font-size: 12px; padding: 3px 10px; }
 .kindbtn.on { background: #fdf3e1; border-color: #ead3a6; }
 .calslist li { gap: 8px; }
+.granola-start { text-decoration: none; background: #b22133 !important; border-color: #b22133 !important; color: #fff !important; }
+#granolaStartBox { margin: 4px 0 8px; }
