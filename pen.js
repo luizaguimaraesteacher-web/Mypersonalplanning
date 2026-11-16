@@ -677,12 +677,10 @@
     return card;
   }
 
+  // The day's Notebooks card: your notebooks (most recently used first) and a new one
   function renderDayNotes() {
-    const g = $('#dayNotes');
-    const notes = Store.list('note').filter(n => !n.notebookId && n.date === state.date).sort((a, b) => a.created - b.created);
-    fill(g, ...notes.map(n => noteCard(n, false)),
-      el('button', { class: 'note-card new', onclick: () => newNote(state.date) },
-        el('span', { class: 'plus' }, '+'), el('span', {}, 'New study note')));
+    fill($('#dayNotes'), notebooks().slice(0, 5).map(nbCover),
+      el('button', { class: 'nb-card nb-new', onclick: newNotebook }, el('span', { class: 'nb-blank' }, '+'), el('span', { class: 'nb-meta' }, el('strong', {}, 'New notebook'))));
   }
 
   function newNote(date, subject, planId) {
@@ -736,24 +734,12 @@
     scrollTo(0, 0);
   }
 
-  // All study notes
+  // Studies tab: the study plans
   function showLibrary() {
     unmountAll();
     setView('notes');
     renderStudyOverview();
-    const all = Store.list('note').filter(n => !n.notebookId && (n.strokes.length || n.subject));
-    const subs = subjects();
-    if (state.filter && !subs.includes(state.filter)) state.filter = null;
-    const chip = (label, val) => el('button', { class: state.filter === val ? 'on' : '', onclick: () => { state.filter = val; showLibrary(); } }, label);
-    fill($('#subjectChips'), ...(subs.length ? [chip('All', null), ...subs.map(s => chip(s, s))] : []));
-    const list = all.filter(n => !state.filter || n.subject === state.filter)
-      .sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
-    fill($('#libGrid'), ...list.map(n => noteCard(n, true)));
-    $('#libPdf').hidden = !list.length;
-    $('#libPdf').onclick = () => notesToPdf(list, state.filter || 'Study notes');
-    $('#libEmpty').hidden = list.length > 0;
   }
-  $('#libNew').addEventListener('click', () => newNote(today()));
 
 
   // ---------- notebooks ----------
@@ -765,22 +751,43 @@
     setView('notebooks');
     const list = notebooks();
     $('#nbEmpty').hidden = list.length > 0;
-    fill($('#nbGrid'), list.map(b => {
-      const pages = pagesOf(b.id), first = pages.find(p => p.strokes.length);
-      const c = el('canvas', { class: 'thumb' });
-      if (first) requestAnimationFrame(() => drawThumb(c, first));
-      return el('a', { class: 'nb-card', href: '#notebook/' + b.id, style: `--nb:${b.color || NB_COLORS[0]}` },
-        el('span', { class: 'nb-spine' }),
-        first ? c : el('span', { class: 'nb-blank' }, '✎'),
-        el('span', { class: 'nb-meta' }, el('strong', {}, b.name || 'Notebook'), el('small', {}, pages.length + (pages.length === 1 ? ' page' : ' pages'))));
-    }));
+    fill($('#nbGrid'), list.map(nbCover));
   }
-  $('#nbNew').addEventListener('click', () => {
+  function nbCover(b) {
+    const pages = pagesOf(b.id), first = pages.find(p => p.strokes.length);
+    const c = el('canvas', { class: 'thumb' });
+    if (first) requestAnimationFrame(() => drawThumb(c, first));
+    return el('a', { class: 'nb-card', href: '#notebook/' + b.id, style: `--nb:${b.color || NB_COLORS[0]}` },
+      first ? c : el('span', { class: 'nb-blank' }, '✎'),
+      el('span', { class: 'nb-meta' }, el('strong', {}, b.name || 'Notebook'), el('small', {}, pages.length + (pages.length === 1 ? ' page' : ' pages'))));
+  }
+  function newNotebook() {
     const b = { id: 'nb-' + uid(), kind: 'notebook', name: '', color: NB_COLORS[notebooks().length % NB_COLORS.length], created: Date.now(), date: today() };
     Store.save(b);
     go('notebook/' + b.id);
     setTimeout(() => $('#nbName').focus(), 60);
-  });
+  }
+  $('#nbNew').addEventListener('click', newNotebook);
+  // Once: study notes written before notebooks existed go into notebooks, one per subject (plan notes stay with their plan)
+  function migrateNotebooks() {
+    if (Config.get('nbMigrated', false)) return;
+    const planNames = new Set(plans().map(p => (p.name || '').trim().toLowerCase()));
+    const loose = Store.list('note').filter(n => !n.notebookId && !n.planId && !n.topicId && Array.isArray(n.strokes) && n.strokes.length
+      && !planNames.has((n.subject || '').trim().toLowerCase()));
+    const groups = new Map();
+    for (const n of loose) { const k = (n.subject || '').trim() || 'My notes'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(n); }
+    let i = notebooks().length;
+    for (const [name, notes] of groups) {
+      const b = { id: 'nb-' + uid(), kind: 'notebook', name, color: NB_COLORS[i++ % NB_COLORS.length], created: Date.now(), date: today() };
+      Store.save(b);
+      notes.sort((a, c) => a.date.localeCompare(c.date) || a.created - c.created).forEach((n, k) => {
+        n.notebookId = b.id; n.order = k;
+        if (n.subject === name) n.subject = fmt(n.date, { month: 'short', day: 'numeric', year: 'numeric' });
+        Store.save(n);
+      });
+    }
+    Config.set('nbMigrated', true);
+  }
   function newPage(b) {
     const pages = pagesOf(b.id);
     const n = { id: uid(), kind: 'note', date: today(), subject: '', notebookId: b.id, order: pages.length ? (pages[pages.length - 1].order ?? pages[pages.length - 1].created) + 1 : Date.now(),
@@ -3632,5 +3639,5 @@ function send(o) {
 
   if (!EMBED && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-  Store.init().then(() => { seedStudyPlan(); migrateStudy(); migrateRoutines(); route(); });
+  Store.init().then(() => { seedStudyPlan(); migrateStudy(); migrateRoutines(); migrateNotebooks(); route(); });
 })();
