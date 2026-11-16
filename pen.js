@@ -1465,26 +1465,38 @@ function send(o) {
           ? el('button', { class: 'adchip', style, title: 'Edit this event', onclick: () => openEventEditor(ev) }, label)
           : el('span', { class: 'adchip', style }, label);
       })) : null;
-    // timed events: the next few, the rest behind a button
     // what already happened: smaller; the next three: bigger; the rest behind the arrow
     const past = timed.filter(ev => ev.end && ev.end < now), rest = timed.filter(ev => !(ev.end && ev.end < now));
     const next = new Set(rest.slice(0, EVENTS_NEXT));
     const shown = new Set([...past, ...next]);
+    // events that overlap in time
+    const clash = new Map();
+    timed.forEach((a, x) => timed.forEach((b, y) => {
+      if (x === y) return;
+      const aEnd = a.end > a.start ? a.end : a.start + 1, bEnd = b.end > b.start ? b.end : b.start + 1;
+      if (a.start < bEnd && b.start < aEnd) { if (!clash.has(a)) clash.set(a, []); clash.get(a).push(b); }
+    }));
+    const calName = id => { const c = (Cals.list || []).find(c => c.id === id); return c ? c.label : ''; };
     const items = timed.map(ev => {
       const color = okColor(ev.color);
       const rec = Store.items.get(classKey(ev));
-      const what = [el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
-        ev.location ? el('span', {}, ev.location) : null];
-      return el('li', { class: (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
+      const others = clash.get(ev);
+      const sub = [ev.end > ev.start ? `until ${timeOf(ev.end)}` : null, ev.location || null, Cals.list && Cals.list.length > 1 ? calName(ev.calId) : null].filter(Boolean).join(' · ');
+      const what = [
+        el('span', { class: 'evtitle' },
+          el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
+          rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status)) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
+        sub ? el('span', { class: 'evsub' }, sub) : null,
+        others ? el('span', { class: 'clashtag' }, '⚠ Same time as ' + others.map(o => o.busy ? 'a busy slot' : `"${o.title || 'another event'}"`).join(', ')) : null];
+      return el('li', { class: (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
-        el('span', { class: 'when' }, timeOf(ev.start), ev.end && ev.end > ev.start ? el('small', {}, timeOf(ev.end)) : null),
+        el('span', { class: 'when' }, timeOf(ev.start)),
         ev.busy ? el('span', { class: 'what', title: 'This calendar only shares when you are busy' }, what)
-          : el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what),
-        ev.busy ? null : el('button', { class: 'recbtn' + (rec && (rec.status || hasNotes(rec)) ? ' done' : ''), title: 'Open this event', onclick: () => openClassFor(ev) },
-          rec && rec.status ? statusLabel(rec.status) : rec && hasNotes(rec) ? 'Notes ✓' : 'Open ›'),
+          : el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what, el('span', { class: 'chev', 'aria-hidden': 'true' }, '›')),
         ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
     });
+    const clashCount = [...clash.keys()].filter(e => !(e.end && e.end < now)).length;
     const later = timed.length - shown.size;
     const list = timed.length ? el('ul', { class: 'events timed' }, items) : null;
     const moreBtn = later ? el('button', {
@@ -1496,7 +1508,8 @@ function send(o) {
     }) : null;
     const moreText = `▾ ${later} more event${later === 1 ? '' : 's'}`;
     if (moreBtn) moreBtn.textContent = moreText;
-    fill(body, dayRow, list, moreBtn);
+    const clashNote = clashCount ? el('p', { class: 'clashnote' }, `⚠ ${clashCount} events at the same time: check the ones marked below.`) : null;
+    fill(body, clashNote, dayRow, list, moreBtn);
   }
 
   async function renderCalendar(force) {
@@ -1688,16 +1701,15 @@ function send(o) {
       el('div', { class: 'card-head' },
         el('h2', {}, el('span', { class: 'dot', style: 'background:#b22133' }), 'Classes & notes'),
         el('span', { class: 'head-actions' },
-          el('button', { class: 'mini', onclick: () => newClass(date) }, '● Record a class'),
+          el('button', { class: 'mini', onclick: () => newClass(date) }, '+ Class notes'),
           EMBED ? el('button', { class: 'icon-btn sm', title: 'Refresh Granola notes', 'aria-label': 'Refresh Granola notes', onclick: () => renderClassCard(true) }, '↻') : null)),
       recs.length ? el('ul', { class: 'classlist' }, recs.map(c => el('li', {},
         el('a', { href: '#class/' + c.id },
           el('span', { class: 'when' }, timeOf(c.start)),
           el('strong', {}, c.title || 'Class'),
           c.status ? el('span', { class: 'st st-' + c.status }, statusLabel(c.status)) : null,
-          c.transcript ? el('span', { class: 'muted small' }, 'recorded') : null,
           c.granola && c.granola.url ? el('span', { class: 'muted small' }, '· in Granola') : null)))) :
-        el('p', { class: 'muted small' }, 'Tap Record on a class in your calendar, or Record a class, to keep its notes, homework and recording here.'),
+        el('p', { class: 'muted small' }, 'Tap a class in your calendar (or + Class notes) to keep how it went, what you covered and the homework. Record the class itself in Granola: its notes show up here.'),
       EMBED ? granolaBox : null);
     if (!EMBED) return;
     fill(granolaBox, el('h3', { class: 'subhead' }, 'Granola notes'), el('p', { class: 'muted small' }, 'Loading your Granola notes…'));
@@ -1896,8 +1908,10 @@ function send(o) {
       go('day/' + c.date);
     };
     // recording
+    // Classes are recorded in the Granola app; old text typed or dictated here still shows if there is any.
+    $('#recCard').hidden = !(c.transcript || '').trim();
     const btn = $('#recBtn');
-    btn.hidden = !Dict;
+    btn.hidden = true;
     $('#recHint').textContent = Dict
       ? 'Your words appear below as you speak. You can fix anything by typing.'
       : 'On iPad: tap the box below, then tap the microphone 🎤 on the keyboard and speak — iPad writes down what you say. You can also write in the box with Apple Pencil.';
@@ -2037,17 +2051,14 @@ function send(o) {
     const c = recClass;
     if (!c) return;
     const sent = c.granola && c.granola.url;
-    $('#granolaSend').hidden = !EMBED;
-    $('#granolaSend').disabled = !c.transcript.trim();
-    $('#granolaSend').textContent = sent ? 'Send to Granola again' : 'Send recording to Granola';
     fill($('#granolaSent'), sent ? el('a', { href: c.granola.url, target: '_blank', rel: 'noopener' }, 'Saved in Granola — open it ↗') : null);
   }
-  async function findGranolaFor(c) {
+  async function findGranolaFor(c, force) {
     const box = $('#granolaMatch');
     if (!EMBED) { fill(box, el('p', { class: 'muted small' }, 'Granola notes show up when you open the planner inside Claude.')); return; }
     fill(box, el('p', { class: 'muted small' }, 'Looking for this class in Granola…'));
     try {
-      const list = await granolaDay(c.date);
+      const list = await granolaDay(c.date, force);
       if (recClass !== c) return;
       const title = (c.title || '').toLowerCase();
       const near = list.filter(m => !m.upcoming && (Math.abs(m.at - c.start) < 45 * 60e3 || (title && m.title.toLowerCase().includes(title))));
@@ -2058,50 +2069,7 @@ function send(o) {
       fill(box, el('p', { class: 'small' }, connectorProblem(err, 'Granola', 'your Granola notes')[0]));
     }
   }
-  const isoOffset = ms => {
-    const d = new Date(ms), off = -d.getTimezoneOffset(), a = Math.abs(off);
-    return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${off >= 0 ? '+' : '-'}${pad(Math.floor(a / 60))}:${pad(a % 60)}`;
-  };
-  function granolaTranscript(text) {
-    const out = [];
-    for (const raw of text.split('\n')) {
-      const line = raw.trim();
-      if (!line) continue;
-      const m = /^\[(\d{1,2}:\d\d(?::\d\d)?)\]\s*(.*)$/.exec(line);
-      if (m) out.push(`Class recording [${m[1].split(':').length === 2 ? '00:' + m[1] : m[1]}]: ${m[2]}`);
-      else out.push(out.length ? line : `Class recording [00:00]: ${line}`);
-    }
-    return out.join('\n');
-  }
-  $('#granolaSend').addEventListener('click', async () => {
-    const c = recClass, msg = $('#granolaMsg');
-    if (!c || !c.transcript.trim()) return;
-    const transcript = granolaTranscript(c.transcript);
-    if (transcript.length > 100000) { msg.textContent = 'This recording is too long to send in one go. Split it into two classes.'; return; }
-    const input = { title: c.title || 'Class', meeting_started_at: isoOffset(c.start || Date.now()), transcript, meeting_platform: 'in person' };
-    if (c.end > c.start) input.meeting_ended_at = isoOffset(c.end);
-    const withEvent = c.eventId && c.calId ? { ...input, calendar_event: { provider: 'google', calendar_id: c.calId, event_id: c.eventId } } : null;
-    $('#granolaSend').disabled = true;
-    msg.textContent = 'Sending to Granola…';
-    const send = inp => granolaCall('create_meeting_note_from_transcript', inp);
-    try {
-      let res;
-      try { res = await send(withEvent || input); }
-      catch (e) { if (withEvent && /calendar_event_unavailable/.test((e && e.message) || '')) res = await send(input); else throw e; }
-      const text = typeof res === 'string' ? res : JSON.stringify(res || {});
-      const url = granolaUrl(((res && res.url) || (/https:\/\/notes\.granola\.ai\/[\w\-/]+/.exec(text) || [''])[0]));
-      c.granola = { url, at: Date.now() };
-      Store.save(c);
-      msg.textContent = 'Sent. Granola writes the summary in a minute or two.';
-      granolaCache.delete(c.date);
-    } catch (err) {
-      console.warn(err);
-      const m = (err && err.message) || '';
-      msg.textContent = /import_limit_reached/.test(m) ? 'Granola\'s daily import limit is reached. Try again tomorrow.'
-        : (err && (err.code === 'server_unavailable' || err.code === 'upstream_error')) ? 'Granola didn\'t answer, so it may or may not have saved this. Check Granola before sending again.'
-          : connectorProblem(err, 'Granola', 'Granola')[0];
-    } finally { drawGranolaSend(); }
-  });
+  $('#granolaLook').addEventListener('click', () => { if (recClass) findGranolaFor(recClass, true); });
 
   // ---------- study plan ----------
   // A plan has two kinds of course: "gp" (topics, 2 per weekday, 3 on Fridays, 1 a day for the first 3 days)

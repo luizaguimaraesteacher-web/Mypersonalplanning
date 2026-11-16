@@ -719,7 +719,7 @@ button.adchip { cursor: pointer; }
 /* one per line: past events small, the next three bigger */
 .events.timed > li.past { padding: 3px 0; }
 .events.timed > li.past .what strong { font-size: 13px; font-weight: 500; }
-.events.timed > li.past .what span, .events.timed > li.past .when small { display: none; }
+.events.timed > li.past .evsub, .events.timed > li.past .when small { display: none; }
 .events.timed > li.past .when { font-size: 12px; font-weight: 500; }
 .events.timed > li.past .recbtn { padding: 2px 8px; font-size: 11px; }
 .events.timed > li.past .evnotes { display: none; }
@@ -729,3 +729,32 @@ button.adchip { cursor: pointer; }
 .events.timed > li.next .cdot { width: 10px; height: 10px; }
 .evmore { display: block; width: 100%; margin-top: 6px; text-align: center; }
 @media (max-width: 620px) { .events.timed .evnotes { padding-left: 18px; } .allday-row .when { width: auto; } }
+
+/* calendar rows, cleaner */
+.allday-row { gap: 4px; padding: 2px 0 6px; }
+.allday-row .when { font-size: 11px; width: 70px; }
+.adchip { font-size: 11px; padding: 1px 6px; border-left-width: 3px; border-radius: 4px; color: var(--muted); }
+.events.timed > li { flex-wrap: wrap; align-items: flex-start; column-gap: 10px; }
+.events.timed .cdot { margin-top: 7px; }
+.events.timed .when { width: 70px; padding-top: 1px; display: block; }
+.events.timed button.what, .events.timed span.what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; padding-right: 22px; text-align: left; }
+.evtitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.evtitle .st { font-size: 11px; padding: 1px 8px; }
+.st-notes { background: #e3f4ec; color: #1f7a52; }
+.evsub { font-size: 12px; color: var(--muted); }
+.chev { position: absolute; right: 2px; top: 0; color: var(--muted); font-size: 18px; line-height: 1.2; }
+.events.timed > li.past .evsub, .events.timed > li.past .chev { display: none; }
+.events.timed > li.past .evtitle .st { font-size: 10px; padding: 0 6px; }
+.clashtag { font-size: 12px; font-weight: 600; color: #9a5b00; }
+.events.timed > li.clash { background: #fff7e6; box-shadow: inset 3px 0 0 #d08a12; margin: 0 -10px; padding-left: 10px; padding-right: 10px; border-radius: 6px; }
+.events.timed > li.past .clashtag { font-size: 11px; font-weight: 500; }
+.clashnote { margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; background: #fff7e6; color: #9a5b00; font-size: 13px; font-weight: 600; }
+.events.timed button.what { color: var(--ink); font: inherit; }
+.events.timed > li.past > .what { opacity: .6; }
+.events.timed .what .evtitle { color: var(--ink); font-size: inherit; }
+.events.timed .what .evtitle .st { color: inherit; }
+.events.timed .what .evtitle .st-notes, .events.timed .what .evtitle .st-happened { color: #1f7a52; }
+.events.timed .what .evtitle .st-noshow { color: #ac2c37; }
+.events.timed .what .evtitle .st-moved { color: #5b4b9a; }
+.events.timed .what .evtitle .st-cancelled { color: var(--muted); }
+.events.timed .what .clashtag { color: #9a5b00; }

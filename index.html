@@ -186,8 +186,8 @@
         <div id="lastClass"></div>
       </section>
 
-      <section class="card rec">
-        <div class="card-head"><h2><span class="dot" style="background:#b22133"></span>Recording</h2><span id="recState" class="rec-live"></span></div>
+      <section class="card rec" id="recCard" hidden>
+        <div class="card-head"><h2>Text saved here before</h2><span id="recState" class="rec-live"></span></div>
         <div class="rec-controls">
           <button id="recBtn" class="rec-btn" hidden>● Start recording</button>
           <span id="recHint" class="muted small"></span>
@@ -203,12 +203,10 @@
       <section class="card"><h2>Notes</h2><textarea id="classNotes" rows="4" placeholder="Anything else to remember"></textarea></section>
 
       <section class="card">
-        <div class="card-head"><h2>Granola</h2></div>
+        <div class="card-head"><h2>🎙 Granola recording</h2><button class="icon-btn sm" id="granolaLook" title="Look again" aria-label="Look for this class in Granola again">↻</button></div>
+        <p class="small muted">Record the class in the Granola app. Its notes show up here (tap ↻ after the class if they don't yet).</p>
         <div id="granolaMatch"></div>
-        <div class="rec-controls">
-          <button class="mini primary" id="granolaSend">Send recording to Granola</button>
-          <span id="granolaSent" class="small"></span>
-        </div>
+        <p class="small"><span id="granolaSent"></span></p>
         <p id="granolaMsg" class="small muted"></p>
       </section>
     </section>
