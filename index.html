@@ -23,6 +23,7 @@
       <a href="#calendar" data-nav="calendar">Calendar</a>
       <a href="#notes" data-nav="notes">Studies</a>
       <a href="#routines" data-nav="routines">Routines</a>
+      <a href="#notebooks" data-nav="notebooks">Notebooks</a>
       <a href="#money" data-nav="money">Money</a>
     </nav>
     <a class="hubbtn" href="https://claude.ai/artifact/MREnPXLS7mhgCieWR1TRkz" target="_blank" rel="noopener" title="Open Hello Pro Hub"><span class="hub-long">Hello Pro Hub</span><span class="hub-short">Hub</span> ↗</a>
@@ -81,8 +82,6 @@
 
       <section class="card" id="moneyCard"></section>
 
-      <section class="card" id="classCard"></section>
-
       <section class="card" id="studyCard" hidden></section>
 
       <section class="card">
@@ -97,6 +96,28 @@
         <section class="card" id="photoCard"></section>
         <section class="card" id="gratCard"></section>
       </div>
+    </section>
+
+    <!-- NOTEBOOKS -->
+    <section id="view-notebooks" class="view">
+      <div class="libhead">
+        <h1>Notebooks</h1>
+        <span class="head-actions"><button class="mini primary" id="nbNew">+ New notebook</button></span>
+      </div>
+      <div id="nbGrid" class="nb-grid"></div>
+      <p id="nbEmpty" class="empty" hidden>No notebooks yet. Tap <b>+ New notebook</b> to start one.</p>
+    </section>
+
+    <!-- ONE NOTEBOOK -->
+    <section id="view-notebook" class="view">
+      <div class="notehead">
+        <a class="mini" href="#notebooks">‹ Notebooks</a>
+        <input id="nbName" placeholder="Notebook name" autocomplete="off" aria-label="Notebook name" />
+        <button class="mini" id="nbPdf">⤓ PDF</button>
+        <button class="mini danger" id="nbDelete">Delete</button>
+      </div>
+      <p id="nbInfo" class="muted small"></p>
+      <div id="nbPages" class="note-grid lib"></div>
     </section>
 
     <!-- MONEY -->
