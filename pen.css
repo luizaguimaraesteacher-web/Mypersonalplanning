@@ -716,8 +716,16 @@ button.adchip { cursor: pointer; }
 .events.timed .when small { font-weight: 400; font-size: 11px; }
 .events.timed .evnotes { padding-left: 88px; }
 .evmore { margin-top: 6px; }
-@media (min-width: 760px) {
-  .events.timed { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
-  .events.timed > li:last-child { border-bottom: 1px solid var(--line); }
-}
+/* one per line: past events small, the next three bigger */
+.events.timed > li.past { padding: 3px 0; }
+.events.timed > li.past .what strong { font-size: 13px; font-weight: 500; }
+.events.timed > li.past .what span, .events.timed > li.past .when small { display: none; }
+.events.timed > li.past .when { font-size: 12px; font-weight: 500; }
+.events.timed > li.past .recbtn { padding: 2px 8px; font-size: 11px; }
+.events.timed > li.past .evnotes { display: none; }
+.events.timed > li.next { padding: 10px 0; }
+.events.timed > li.next .what strong { font-size: 17px; }
+.events.timed > li.next .when { font-size: 15px; color: var(--ink); }
+.events.timed > li.next .cdot { width: 10px; height: 10px; }
+.evmore { display: block; width: 100%; margin-top: 6px; text-align: center; }
 @media (max-width: 620px) { .events.timed .evnotes { padding-left: 18px; } .allday-row .when { width: auto; } }

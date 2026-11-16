@@ -1451,7 +1451,7 @@ function send(o) {
     });
   }
 
-  const EVENTS_SHOWN = 6;
+  const EVENTS_NEXT = 3;
   function drawEvents(body, events) {
     if (!events.length) { fill(body, el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
     const now = Date.now();
@@ -1466,15 +1466,16 @@ function send(o) {
           : el('span', { class: 'adchip', style }, label);
       })) : null;
     // timed events: the next few, the rest behind a button
+    // what already happened: smaller; the next three: bigger; the rest behind the arrow
     const past = timed.filter(ev => ev.end && ev.end < now), rest = timed.filter(ev => !(ev.end && ev.end < now));
-    const shown = new Set(rest.slice(0, past.length && !rest.length ? 0 : EVENTS_SHOWN));
-    if (!rest.length) past.slice(-EVENTS_SHOWN).forEach(ev => shown.add(ev));
+    const next = new Set(rest.slice(0, EVENTS_NEXT));
+    const shown = new Set([...past, ...next]);
     const items = timed.map(ev => {
       const color = okColor(ev.color);
       const rec = Store.items.get(classKey(ev));
       const what = [el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
         ev.location ? el('span', {}, ev.location) : null];
-      return el('li', { class: (ev.end && ev.end < now ? 'past' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
+      return el('li', { class: (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, timeOf(ev.start), ev.end && ev.end > ev.start ? el('small', {}, timeOf(ev.end)) : null),
         ev.busy ? el('span', { class: 'what', title: 'This calendar only shares when you are busy' }, what)
@@ -1484,17 +1485,16 @@ function send(o) {
         ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
     });
-    const hiddenCount = timed.length - shown.size;
-    const earlier = past.filter(ev => !shown.has(ev)).length, later = hiddenCount - earlier;
+    const later = timed.length - shown.size;
     const list = timed.length ? el('ul', { class: 'events timed' }, items) : null;
-    const moreBtn = hiddenCount ? el('button', {
+    const moreBtn = later ? el('button', {
       class: 'mini evmore', onclick: e => {
         const open = e.currentTarget.classList.toggle('open');
         list.querySelectorAll('li.more').forEach(li => { li.hidden = !open; });
-        e.currentTarget.textContent = open ? 'Show less' : moreText;
+        e.currentTarget.textContent = open ? '▴ Show less' : moreText;
       },
     }) : null;
-    const moreText = [earlier ? `${earlier} earlier` : null, later ? `${later} more` : null].filter(Boolean).join(' · ') + ' ▾';
+    const moreText = `▾ ${later} more event${later === 1 ? '' : 's'}`;
     if (moreBtn) moreBtn.textContent = moreText;
     fill(body, dayRow, list, moreBtn);
   }

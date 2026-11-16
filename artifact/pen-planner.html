@@ -718,10 +718,18 @@ button.adchip { cursor: pointer; }
 .events.timed .when small { font-weight: 400; font-size: 11px; }
 .events.timed .evnotes { padding-left: 88px; }
 .evmore { margin-top: 6px; }
-@media (min-width: 760px) {
-  .events.timed { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
-  .events.timed > li:last-child { border-bottom: 1px solid var(--line); }
-}
+/* one per line: past events small, the next three bigger */
+.events.timed > li.past { padding: 3px 0; }
+.events.timed > li.past .what strong { font-size: 13px; font-weight: 500; }
+.events.timed > li.past .what span, .events.timed > li.past .when small { display: none; }
+.events.timed > li.past .when { font-size: 12px; font-weight: 500; }
+.events.timed > li.past .recbtn { padding: 2px 8px; font-size: 11px; }
+.events.timed > li.past .evnotes { display: none; }
+.events.timed > li.next { padding: 10px 0; }
+.events.timed > li.next .what strong { font-size: 17px; }
+.events.timed > li.next .when { font-size: 15px; color: var(--ink); }
+.events.timed > li.next .cdot { width: 10px; height: 10px; }
+.evmore { display: block; width: 100%; margin-top: 6px; text-align: center; }
 @media (max-width: 620px) { .events.timed .evnotes { padding-left: 18px; } .allday-row .when { width: auto; } }
 
 </style>
@@ -2638,7 +2646,7 @@ function send(o) {
     });
   }
 
-  const EVENTS_SHOWN = 6;
+  const EVENTS_NEXT = 3;
   function drawEvents(body, events) {
     if (!events.length) { fill(body, el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
     const now = Date.now();
@@ -2653,15 +2661,16 @@ function send(o) {
           : el('span', { class: 'adchip', style }, label);
       })) : null;
     // timed events: the next few, the rest behind a button
+    // what already happened: smaller; the next three: bigger; the rest behind the arrow
     const past = timed.filter(ev => ev.end && ev.end < now), rest = timed.filter(ev => !(ev.end && ev.end < now));
-    const shown = new Set(rest.slice(0, past.length && !rest.length ? 0 : EVENTS_SHOWN));
-    if (!rest.length) past.slice(-EVENTS_SHOWN).forEach(ev => shown.add(ev));
+    const next = new Set(rest.slice(0, EVENTS_NEXT));
+    const shown = new Set([...past, ...next]);
     const items = timed.map(ev => {
       const color = okColor(ev.color);
       const rec = Store.items.get(classKey(ev));
       const what = [el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
         ev.location ? el('span', {}, ev.location) : null];
-      return el('li', { class: (ev.end && ev.end < now ? 'past' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
+      return el('li', { class: (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, timeOf(ev.start), ev.end && ev.end > ev.start ? el('small', {}, timeOf(ev.end)) : null),
         ev.busy ? el('span', { class: 'what', title: 'This calendar only shares when you are busy' }, what)
@@ -2671,17 +2680,16 @@ function send(o) {
         ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
     });
-    const hiddenCount = timed.length - shown.size;
-    const earlier = past.filter(ev => !shown.has(ev)).length, later = hiddenCount - earlier;
+    const later = timed.length - shown.size;
     const list = timed.length ? el('ul', { class: 'events timed' }, items) : null;
-    const moreBtn = hiddenCount ? el('button', {
+    const moreBtn = later ? el('button', {
       class: 'mini evmore', onclick: e => {
         const open = e.currentTarget.classList.toggle('open');
         list.querySelectorAll('li.more').forEach(li => { li.hidden = !open; });
-        e.currentTarget.textContent = open ? 'Show less' : moreText;
+        e.currentTarget.textContent = open ? '▴ Show less' : moreText;
       },
     }) : null;
-    const moreText = [earlier ? `${earlier} earlier` : null, later ? `${later} more` : null].filter(Boolean).join(' · ') + ' ▾';
+    const moreText = `▾ ${later} more event${later === 1 ? '' : 's'}`;
     if (moreBtn) moreBtn.textContent = moreText;
     fill(body, dayRow, list, moreBtn);
   }
