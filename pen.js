@@ -5,6 +5,7 @@
 
   const LW = 1000;            // every surface is 1000 units wide, whatever the screen size
   const TASK_H = 120;
+  const TASK_NOTE_H = 180;      // the notes strip beside a task is narrower, so it is taller in units
   const NOTE_H = 1400, NOTE_GROW = 700, NOTE_MAX = 9000;
   const PEN_COLORS = ['#1f2328', '#2856c8', '#c8372d', '#1d8a5a', '#8a4fd6'];
   const HL_COLORS = ['#ffd43b', '#8ce99a', '#ffa8d0', '#a5d8ff'];
@@ -550,6 +551,7 @@
       if (it.kind === 'task' && !inked) Store.remove(it.id);
       if (it.kind === 'note' && !inked && !it.subject) Store.remove(it.id);
       if (it.kind === 'gratitude' && !inked) Store.remove(it.id);
+      if (it.kind === 'tasknote' && (!inked || !Store.items.has(it.taskId))) Store.remove(it.id);
       if (it.kind === 'class' && !it.status && !hasNotes(it) && !it.gMoved && !it.gCancelled && (it.eventId || !it.title)) Store.remove(it.id);
     }
   }
@@ -572,6 +574,7 @@
     renderTasks();
     renderDayNotes();
     renderDayExtras();
+    renderMoneyCard();
   }
 
   function renderTasks() {
@@ -619,10 +622,27 @@
         }, '→'),
         el('button', {
           class: 'icon-btn', title: 'Delete task', 'aria-label': 'Delete task',
-          onclick: async () => { if (await ask('Delete this task?', 'Delete')) { Store.remove(t.id); renderTasks(); } },
+          onclick: async () => { if (await ask('Delete this task?', 'Delete')) { Store.remove(t.id); if (Store.items.has('tn-' + t.id)) Store.remove('tn-' + t.id); renderTasks(); } },
         }, '×'));
     }
-    li.append(check, strip, actions);
+    // the notes space next to the task (its own handwriting area, saved separately)
+    const nid = 'tn-' + t.id;
+    const note = Store.items.get(nid) || { id: nid, kind: 'tasknote', taskId: t.id, date: t.date, strokes: [], created: Date.now() };
+    const nstrip = el('div', { class: 'nstrip' });
+    const body = el('div', { class: 'tbody' + (note.strokes.length ? ' has-note' : '') }, strip, nstrip);
+    actions.prepend(el('button', {
+      class: 'icon-btn notebtn', title: 'Notes for this task', 'aria-label': 'Notes for this task',
+      onclick: () => body.classList.toggle('open'),
+    }, '✎'));
+    li.append(check, body, actions);
+    new Surface(nstrip, note, {
+      h: TASK_NOTE_H, paper: 'task',
+      onChange: () => {
+        note.date = t.date;
+        if (note.strokes.length || Store.items.has(nid)) Store.save(note);
+        body.classList.toggle('has-note', note.strokes.length > 0);
+      },
+    });
     new Surface(strip, t, {
       h: TASK_H, paper: 'task',
       onStroke: () => {
@@ -954,8 +974,8 @@
       for (const [d, box] of cells) {
         const list = byDay.get(d) || [];
         fill(box, ...list.slice(0, 3).map(ev => el('button', { class: 'me' + (ev.allDay ? ' allday' : ''), style: `--ec:${ev.color || CAL_COLORS[0]}`,
-            title: ev.title || '', onclick: () => { if (!ev.allDay) openClassFor(ev); else if (EMBED && ev.id) openEventEditor(ev); else go('day/' + iso(new Date(ev.start))); } },
-          ev.allDay ? '' : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), ev.title || '(No title)')),
+            title: ev.title || '', onclick: () => { if (ev.busy) go('day/' + iso(new Date(ev.start))); else if (!ev.allDay) openClassFor(ev); else if (EMBED && ev.id) openEventEditor(ev); else go('day/' + iso(new Date(ev.start))); } },
+          ev.allDay ? '' : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), ev.busy ? 'Busy' : ev.title || '(No title)')),
           list.length > 3 ? el('span', { class: 'more' }, `+${list.length - 3} more`) : null,
           list.length ? el('span', { class: 'mcount', 'aria-hidden': 'true' }, String(list.length)) : null);
       }
@@ -1086,7 +1106,7 @@ function send(o) {
       console.warn(err);
       return [{ id: '', name: 'My calendar', label: 'My calendar', color: CAL_COLORS[0], writable: true }];
     }
-    const cals = out.filter(c => c && typeof c.id === 'string').map(c => ({ id: c.id, name: String(c.summary || c.id) }));
+    const cals = out.filter(c => c && typeof c.id === 'string').map(c => ({ id: c.id, name: String(c.summary || c.id), busyOnly: c.accessRole === 'freeBusyReader' }));
     // calendars added by their address (shared with this Google account but not in its list)
     for (const x of Config.get('extraCals', [])) if (x && x.id && !cals.some(c => c.id === x.id)) cals.push({ id: x.id, name: x.name || x.id, added: true });
     cals.sort((a, b) => isHolidayCal(a.id) - isHolidayCal(b.id)); // your own calendars first, holidays last
@@ -1116,7 +1136,12 @@ function send(o) {
     let firstErr = null;
     results.forEach((r, i) => {
       const c = cals[i];
-      if (r.status === 'fulfilled') r.value.forEach(e => events.push({ ...e, calId: c.id, color: c.color }));
+      if (r.status === 'fulfilled') {
+        // a calendar shared as "free/busy only" gives times without names
+        if (r.value.length && r.value.every(e => !e.title && !e.description && !e.location)) c.busyOnly = true;
+        else if (r.value.some(e => e.title)) c.busyOnly = false;
+        r.value.forEach(e => events.push({ ...e, calId: c.id, color: c.color, busy: !!c.busyOnly && !e.title }));
+      }
       else { failed.push(c.label); firstErr = firstErr || r.reason; }
     });
     if (cals.length && failed.length === cals.length) throw firstErr;
@@ -1132,15 +1157,16 @@ function send(o) {
     try { cals = await calendarList(); } catch { fill(box); return; }
     const h = hiddenCals();
     const manage = EMBED ? el('button', { class: 'calchip all', title: 'Add or remove calendars', onclick: () => openCalendars(onChange) }, '+ Calendars') : null;
-    if (cals.length < 2) { fill(box, manage); return; }
+    const busyHint = EMBED && cals.some(c => c.busyOnly) ? el('button', { class: 'calchip all', onclick: () => openCalendars(onChange) }, 'Only seeing "Busy"? How to fix') : null;
+    if (cals.length < 2) { fill(box, manage, busyHint); return; }
     fill(box,
       cals.map(c => el('button', {
         class: 'calchip' + (h.has(c.id) ? '' : ' on'), style: `--ec:${c.color}`, 'aria-pressed': String(!h.has(c.id)),
         title: (h.has(c.id) ? 'Show ' : 'Hide ') + c.label,
         onclick: () => { setCalHidden(c.id, !hiddenCals().has(c.id)); onChange(); },
-      }, el('span', { class: 'sw' }), c.label)),
+      }, el('span', { class: 'sw' }), c.label, c.busyOnly ? el('small', { class: 'busytag' }, ' busy only') : null)),
       h.size ? el('button', { class: 'calchip all', onclick: () => { Config.set('hiddenCals', []); onChange(); } }, 'Show all') : null,
-      manage);
+      manage, busyHint);
   }
 
   // ---- add calendars by their address ----
@@ -1155,10 +1181,11 @@ function send(o) {
     let cals = [];
     try { cals = await calendarList(); } catch { /* shown as empty */ }
     const h = hiddenCals();
+    $('#busyHelp').open = cals.some(c => c.busyOnly);
     fill($('#calsList'), cals.map(c => el('li', { style: `--ec:${c.color}` },
       el('label', { class: 'inline-check' },
         el('input', { type: 'checkbox', checked: h.has(c.id) ? null : true, onchange: e => { setCalHidden(c.id, !e.target.checked); if (calsChanged) calsChanged(); } }),
-        el('span', { class: 'sw' }), el('span', {}, c.label, c.added ? el('small', { class: 'muted' }, ' · added by you') : null)),
+        el('span', { class: 'sw' }), el('span', {}, c.label, c.added ? el('small', { class: 'muted' }, ' · added by you') : null, c.busyOnly ? el('small', { class: 'busytag' }, ' · shares only busy times') : null)),
       c.added ? el('button', { class: 'mini', onclick: () => removeExtraCal(c.id) }, 'Remove') : null)));
   }
   function removeExtraCal(id) {
@@ -1401,16 +1428,17 @@ function send(o) {
       const color = /^#[0-9a-f]{3,8}$/i.test(ev.color || '') ? ev.color : null;
       const canEdit = EMBED && ev.id;
       const rec = !ev.allDay ? Store.items.get(classKey(ev)) : null;
-      const what = [el('strong', {}, ev.title || '(No title)'),
+      const what = [el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
         el('span', {}, [ev.allDay || !ev.end ? null : `until ${timeOf(ev.end)}`, ev.location || null].filter(Boolean).join(' · '))];
       return el('li', { class: (!ev.allDay && ev.end && ev.end < now ? 'past' : '') + (canEdit ? ' editable' : '') },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, ev.allDay ? 'All day' : timeOf(ev.start)),
-        !ev.allDay ? el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what)
+        ev.busy ? el('span', { class: 'what', title: 'This calendar only shares when you are busy' }, what)
+          : !ev.allDay ? el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what)
           : canEdit ? el('button', { class: 'what', title: 'Edit this event', onclick: () => openEventEditor(ev) }, what) : el('span', { class: 'what' }, what),
-        ev.allDay ? null : el('button', { class: 'recbtn' + (rec && (rec.status || hasNotes(rec)) ? ' done' : ''), title: 'Open this event', onclick: () => openClassFor(ev) },
+        ev.allDay || ev.busy ? null : el('button', { class: 'recbtn' + (rec && (rec.status || hasNotes(rec)) ? ' done' : ''), title: 'Open this event', onclick: () => openClassFor(ev) },
           rec && rec.status ? statusLabel(rec.status) : rec && hasNotes(rec) ? 'Notes ✓' : 'Open ›'),
-        ev.allDay ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
+        ev.allDay || ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
     })));
   }
@@ -2802,6 +2830,160 @@ function send(o) {
   }
 
   // ---------- routing ----------
+
+  // ---------- money: expenses ----------
+  const CURRENCIES = ['BRL', 'USD', 'EUR', 'GBP'];
+  const CATEGORIES = ['Food', 'Groceries', 'Transport', 'Home', 'Bills', 'Health', 'Education', 'Work', 'Shopping', 'Leisure', 'Gifts', 'Other'];
+  const METHODS = ['Pix', 'Credit card', 'Debit card', 'Cash', 'Transfer', 'Other'];
+  const money = (n, cur) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur }).format(n); } catch { return cur + ' ' + n.toFixed(2); } };
+  // "1.234,56", "1,234.56", "12,5" and "12.5" all read as numbers
+  function readAmount(raw) {
+    let v = String(raw || '').replace(/[^\d.,-]/g, '');
+    if (!v) return NaN;
+    const lc = v.lastIndexOf(','), ld = v.lastIndexOf('.');
+    if (lc > ld) v = v.replace(/\./g, '').replace(',', '.');
+    else v = v.replace(/,/g, '');
+    return Math.round(parseFloat(v) * 100) / 100;
+  }
+  const expenses = month => Store.list('expense').filter(x => !month || x.date.startsWith(month)).sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
+  const totals = list => { const t = {}; for (const x of list) t[x.currency] = (t[x.currency] || 0) + x.amount; return t; };
+  const totalText = list => { const t = totals(list); const k = Object.keys(t); return k.length ? k.map(c => money(t[c], c)).join(' + ') : money(0, Config.get('currency', 'BRL')); };
+
+  let editingExpense = null, expenseDone = null;
+  const opts = (sel, list, val) => fill(sel, list.map(v => el('option', { value: v, selected: v === val ? true : null }, v)));
+  function openExpense(x, date, after) {
+    editingExpense = x; expenseDone = after;
+    $('#exDlgTitle').textContent = x ? 'Edit expense' : 'New expense';
+    $('#exAmount').value = x ? String(x.amount).replace('.', (1.5).toLocaleString().charAt(1)) : '';
+    opts($('#exCurrency'), CURRENCIES, x ? x.currency : Config.get('currency', 'BRL'));
+    opts($('#exCategory'), CATEGORIES, x ? x.category : 'Food');
+    opts($('#exMethod'), METHODS, x ? x.method : Config.get('method', 'Pix'));
+    $('#exDesc').value = x ? x.desc : '';
+    $('#exNote').value = x ? x.note || '' : '';
+    $('#exDate').value = x ? x.date : (date || today());
+    $('#exMsg').textContent = '';
+    $('#exDelete').hidden = !x;
+    $('#expenseDlg').showModal();
+    if (!x) setTimeout(() => $('#exAmount').focus(), 50);
+  }
+  $('#exCancel').addEventListener('click', () => $('#expenseDlg').close());
+  $('#exSave').addEventListener('click', () => {
+    const amount = readAmount($('#exAmount').value), date = $('#exDate').value;
+    if (!(amount > 0)) { $('#exMsg').textContent = 'Type how much it was, like 25,90.'; return; }
+    if (!isDate(date)) { $('#exMsg').textContent = 'Pick a date.'; return; }
+    const x = editingExpense || { id: 'x-' + uid(), kind: 'expense', created: Date.now() };
+    Object.assign(x, { amount, date, currency: $('#exCurrency').value, category: $('#exCategory').value, method: $('#exMethod').value,
+      desc: $('#exDesc').value.trim().slice(0, 200), note: $('#exNote').value.trim().slice(0, 500) });
+    Config.set('currency', x.currency); Config.set('method', x.method);
+    Store.save(x);
+    $('#expenseDlg').close();
+    toast(editingExpense ? 'Expense updated.' : 'Expense added.');
+    if (expenseDone) expenseDone();
+  });
+  $('#exDelete').addEventListener('click', async () => {
+    const x = editingExpense;
+    $('#expenseDlg').close();
+    if (!x) return;
+    if (await ask(`Delete "${x.desc || x.category}" (${money(x.amount, x.currency)})?`, 'Delete')) { Store.remove(x.id); if (expenseDone) expenseDone(); }
+    else $('#expenseDlg').showModal();
+  });
+
+  function expenseRow(x, after, showDate) {
+    return el('li', {},
+      el('button', { class: 'xrow', onclick: () => openExpense(x, null, after) },
+        el('span', { class: 'xwhat' }, el('strong', {}, x.desc || x.category),
+          el('span', { class: 'muted small' }, [showDate ? fmt(x.date, { weekday: 'short', day: 'numeric' }) : null, x.category, x.method, x.note || null].filter(Boolean).join(' · '))),
+        el('span', { class: 'xamt' }, money(x.amount, x.currency))));
+  }
+
+  function renderMoneyCard() {
+    const card = $('#moneyCard'), date = state.date, list = expenses().filter(x => x.date === date);
+    const again = () => { if (state.date === date) renderMoneyCard(); };
+    fill(card,
+      el('div', { class: 'card-head' },
+        el('h2', {}, el('span', { class: 'dot', style: 'background:var(--money)' }), 'Money'),
+        el('span', { class: 'head-actions' },
+          el('button', { class: 'mini', onclick: () => openExpense(null, date, again) }, '+ Expense'),
+          el('a', { class: 'muted small', href: '#money' }, 'Month ›'))),
+      list.length ? el('p', { class: 'xtotal' }, el('span', { class: 'muted small' }, 'Spent this day '), el('b', {}, totalText(list))) : el('p', { class: 'muted small' }, 'Nothing spent this day. Tap + Expense to add one.'),
+      list.length ? el('ul', { class: 'xlist' }, list.map(x => expenseRow(x, again))) : null);
+  }
+
+  function showMoney(month) {
+    unmountAll();
+    state.moneyMonth = month;
+    setView('money');
+    const d = parse(month + '-01');
+    $('#moneyTitle').textContent = d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const list = expenses(month), again = () => showMoney(month);
+    $('#moneyCount').textContent = list.length ? `${list.length} expense${list.length === 1 ? '' : 's'}` : '';
+
+    // summary: total, budget, by category
+    const cur = Config.get('currency', 'BRL');
+    const t = totals(list), mainTotal = t[cur] || 0;
+    const budget = Config.get('budget', {})[cur] || 0;
+    const prevList = expenses(addDays(month + '-01', -1).slice(0, 7)), prevTotal = totals(prevList)[cur] || 0;
+    const others = Object.keys(t).filter(c => c !== cur);
+    const tile = el('section', { class: 'card xsum' },
+      el('div', { class: 'xhero' },
+        el('span', { class: 'muted small' }, 'Spent this month'),
+        el('strong', {}, money(mainTotal, cur)),
+        others.length ? el('span', { class: 'muted small' }, '+ ' + others.map(c => money(t[c], c)).join(' + ')) : null,
+        prevTotal ? el('span', { class: 'muted small' }, `Last month: ${money(prevTotal, cur)}`) : null),
+      el('div', { class: 'xbudget' },
+        el('label', { class: 'small' }, el('b', {}, `Monthly budget (${cur})`),
+          el('input', { inputmode: 'decimal', placeholder: 'No budget', value: budget ? String(budget) : '',
+            onchange: e => { const v = readAmount(e.target.value); const b = { ...Config.get('budget', {}) }; if (v > 0) b[cur] = v; else delete b[cur]; Config.set('budget', b); again(); } })),
+        budget ? el('div', { class: 'meter' + (mainTotal > budget ? ' over' : ''), role: 'img', 'aria-label': `${Math.round(mainTotal / budget * 100)}% of budget used` },
+          el('span', { style: `width:${Math.min(100, mainTotal / budget * 100)}%` })) : null,
+        budget ? el('span', { class: 'small' + (mainTotal > budget ? ' err-text' : ' muted') },
+          mainTotal > budget ? `${money(mainTotal - budget, cur)} over budget` : `${money(budget - mainTotal, cur)} left`) : null));
+
+    const byCat = {};
+    for (const x of list) if (x.currency === cur) byCat[x.category] = (byCat[x.category] || 0) + x.amount;
+    const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const max = cats.length ? cats[0][1] : 1;
+    const catCard = cats.length ? el('section', { class: 'card' },
+      el('div', { class: 'card-head' }, el('h2', {}, `By category (${cur})`)),
+      el('ul', { class: 'bars' }, cats.map(([c, v]) => el('li', { title: `${c}: ${money(v, cur)} (${Math.round(v / mainTotal * 100)}%)` },
+        el('span', { class: 'blabel' }, c),
+        el('span', { class: 'btrack' }, el('span', { class: 'bfill', style: `width:${Math.max(1.5, v / max * 100)}%` })),
+        el('span', { class: 'bval' }, money(v, cur), el('small', { class: 'muted' }, ` ${Math.round(v / mainTotal * 100)}%`)))))) : null;
+    fill($('#moneySummary'), el('div', { class: 'duo' }, tile, catCard || el('section', { class: 'card' }, el('p', { class: 'muted small' }, 'Your spending by category shows here once you add expenses.'))));
+
+    // list grouped by day
+    const days = [...new Set(list.map(x => x.date))];
+    fill($('#moneyList'), list.length ? days.map(day => {
+      const xs = list.filter(x => x.date === day);
+      return el('div', { class: 'xday' },
+        el('h3', {}, el('a', { href: '#day/' + day }, fmt(day, { weekday: 'long', day: 'numeric', month: 'short' })), el('span', {}, totalText(xs))),
+        el('ul', { class: 'xlist' }, xs.map(x => expenseRow(x, again))));
+    }) : el('p', { class: 'muted small' }, 'No expenses this month yet. Tap + Expense to add one.'));
+  }
+  $('#addExpenseBtn').addEventListener('click', () => {
+    const m = state.moneyMonth || today().slice(0, 7);
+    openExpense(null, today().startsWith(m) ? today() : m + '-01', () => showMoney(m));
+  });
+  const shiftMonth = (m, n) => { const d = parse(m + '-01'); d.setMonth(d.getMonth() + n); return iso(d).slice(0, 7); };
+  $('#prevMonthX').addEventListener('click', () => go('money/' + shiftMonth(state.moneyMonth, -1)));
+  $('#nextMonthX').addEventListener('click', () => go('money/' + shiftMonth(state.moneyMonth, 1)));
+  $('#csvBtn').addEventListener('click', async () => {
+    const m = state.moneyMonth, list = expenses(m).reverse();
+    if (!list.length) { toast('No expenses this month.'); return; }
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const csv = [['Date', 'Description', 'Category', 'Paid with', 'Amount', 'Currency', 'Note'].map(q).join(',')]
+      .concat(list.map(x => [x.date, x.desc, x.category, x.method, x.amount.toFixed(2), x.currency, x.note].map(q).join(','))).join('\n');
+    const filename = `expenses-${m}.csv`;
+    if (EMBED) {
+      const dl = await window.claude.use('downloads').catch(() => null);
+      if (!dl) { toast('Downloading isn\'t available here.', 4000); return; }
+      try { await dl.save({ filename, data: csv }); toast('Saved ' + filename); } catch (e) { if (!e || e.code !== 'declined') toast('Could not save the file.', 4000); }
+      return;
+    }
+    const a = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: filename });
+    document.body.append(a); a.click(); a.remove();
+  });
+
   // On GitHub Pages the address bar keeps the view (#day/2026-11-07), so Back works.
   // Inside Claude the hash can only hold plain names, so the view lives in memory.
   let embedPath = /^[a-z]+$/.test(location.hash.slice(1)) ? location.hash.slice(1) : 'day';
@@ -2841,6 +3023,7 @@ function send(o) {
     cleanup();
     if (view === 'notes') showLibrary();
     else if (view === 'routines') showRoutines();
+    else if (view === 'money') showMoney(/^\d{4}-\d\d$/.test(arg || '') ? arg : (state.moneyMonth || today().slice(0, 7)));
     else if (view === 'calendar') showMonth(/^\d{4}-\d\d$/.test(arg || '') ? arg : (state.month || today().slice(0, 7)));
     else showDay(isDate(arg) ? arg : today());
   }
@@ -2887,7 +3070,8 @@ function send(o) {
           (['task', 'note'].includes(it.kind) && Array.isArray(it.strokes) && isDate(it.date)) ||
           (it.kind === 'routine-day' && isDate(it.date) && it.done && typeof it.done === 'object') ||
           (it.kind === 'class' && isDate(it.date)) ||
-          (it.kind === 'gratitude' && isDate(it.date) && Array.isArray(it.strokes)) ||
+          (['gratitude', 'tasknote'].includes(it.kind) && isDate(it.date) && Array.isArray(it.strokes)) ||
+          (it.kind === 'expense' && isDate(it.date) && typeof it.amount === 'number') ||
           (it.kind === 'photo' && isDate(it.date)) ||
           (it.kind === 'plan' && isDate(it.date) && Array.isArray(it.items)) ||
           (it.kind === 'config' && it.id.startsWith('cfg-')));

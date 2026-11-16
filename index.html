@@ -23,6 +23,7 @@
       <a href="#calendar" data-nav="calendar">Calendar</a>
       <a href="#notes" data-nav="notes">Studies</a>
       <a href="#routines" data-nav="routines">Routines</a>
+      <a href="#money" data-nav="money">Money</a>
     </nav>
     <a class="hubbtn" href="https://claude.ai/artifact/MREnPXLS7mhgCieWR1TRkz" target="_blank" rel="noopener" title="Open Hello Pro Hub"><span class="hub-long">Hello Pro Hub</span><span class="hub-short">Hub</span> ↗</a>
     <details class="menu">
@@ -60,24 +61,30 @@
         </div>
       </div>
 
-      <div class="duo">
+      <div class="duo routines-duo">
         <section class="card" id="morningCard"></section>
-        <section class="card" id="calCard"></section>
+        <section class="card" id="nightCard"></section>
       </div>
 
-      <section class="card" id="classCard"></section>
-
-      <section class="card" id="studyCard" hidden></section>
-
-      <section class="card">
+      <section class="card taskcard">
         <div class="card-head">
           <h2><span class="dot task"></span>Tasks</h2>
           <span id="taskCount" class="muted"></span>
         </div>
         <div id="overdue"></div>
+        <div class="taskcols" aria-hidden="true"><span>Task</span><span>Notes</span></div>
         <ol id="taskList" class="tasks"></ol>
-        <p class="muted small">Write on the empty line to add a task. Tap the circle when it's done.</p>
+        <p class="muted small">Write on the empty line to add a task, and anything about it in the notes space next to it (✎ shows it on a narrow screen). Tap the circle when it's done.</p>
       </section>
+
+      <div class="duo">
+        <section class="card" id="calCard"></section>
+        <section class="card" id="moneyCard"></section>
+      </div>
+
+      <section class="card" id="classCard"></section>
+
+      <section class="card" id="studyCard" hidden></section>
 
       <section class="card">
         <div class="card-head">
@@ -91,8 +98,24 @@
         <section class="card" id="photoCard"></section>
         <section class="card" id="gratCard"></section>
       </div>
+    </section>
 
-      <section class="card" id="nightCard"></section>
+    <!-- MONEY -->
+    <section id="view-money" class="view">
+      <div class="dayhead">
+        <button class="round" id="prevMonthX" aria-label="Previous month">‹</button>
+        <div class="daytitle"><h1 id="moneyTitle">Money</h1><p class="muted">Your expenses this month</p></div>
+        <button class="round" id="nextMonthX" aria-label="Next month">›</button>
+        <div class="dayjump">
+          <button class="mini" id="csvBtn">⤓ CSV</button>
+          <button class="mini primary" id="addExpenseBtn">+ Expense</button>
+        </div>
+      </div>
+      <div id="moneySummary"></div>
+      <section class="card">
+        <div class="card-head"><h2><span class="dot" style="background:var(--money)"></span>Expenses</h2><span id="moneyCount" class="muted small"></span></div>
+        <div id="moneyList"></div>
+      </section>
     </section>
 
     <!-- ROUTINE TRACKER -->
@@ -360,6 +383,17 @@
     <form method="dialog" class="dlg" autocomplete="off">
       <h2>Your calendars</h2>
       <p class="small muted">Tick the calendars to show in the planner.</p>
+      <details id="busyHelp" class="busyhelp small">
+        <summary><b>Only seeing "Busy" for a calendar?</b></summary>
+        <p>That calendar is shared with your connected Google account as <i>free/busy only</i>. To see the event names and details:</p>
+        <ol>
+          <li>Sign in to Google Calendar on a computer with the account that owns that calendar.</li>
+          <li>Next to the calendar: <b>⋮ → Settings and sharing → Share with specific people</b>.</li>
+          <li>Find the account connected to Claude and change <b>See only free/busy</b> to <b>See all event details</b> (or <b>Make changes to events</b>). If it isn't listed, add it.</li>
+          <li>Work or school account? If <b>See all event details</b> is greyed out, the organisation's admin only allows free/busy sharing outside it: ask them, or share from a personal calendar instead.</li>
+          <li>Come back and tap <b>↻</b>. It can take a few minutes to change.</li>
+        </ol>
+      </details>
       <ul id="calsList" class="calslist"></ul>
       <h3 class="subhead">Add another calendar</h3>
       <ol class="setup small">
@@ -373,6 +407,31 @@
       <div class="dlg-actions">
         <button type="button" class="mini" id="acClose">Done</button>
         <button type="button" class="mini primary" id="acAdd">Add calendar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- EXPENSE -->
+  <dialog id="expenseDlg">
+    <form method="dialog" class="dlg" id="expenseForm" autocomplete="off">
+      <h2 id="exDlgTitle">New expense</h2>
+      <div class="evrow">
+        <label class="small grow"><b>Amount</b><input id="exAmount" inputmode="decimal" placeholder="0,00" /></label>
+        <label class="small"><b>Currency</b><select id="exCurrency"></select></label>
+      </div>
+      <label class="small"><b>What was it?</b><input id="exDesc" placeholder="e.g. Lunch, Uber, books" /></label>
+      <div class="evrow">
+        <label class="small grow"><b>Category</b><select id="exCategory"></select></label>
+        <label class="small grow"><b>Paid with</b><select id="exMethod"></select></label>
+      </div>
+      <label class="small"><b>Date</b><input type="date" id="exDate" /></label>
+      <label class="small"><b>Note (optional)</b><input id="exNote" /></label>
+      <p id="exMsg" class="small" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="mini danger" id="exDelete">Delete</button>
+        <span style="flex:1"></span>
+        <button type="button" class="mini" id="exCancel">Cancel</button>
+        <button type="button" class="mini primary" id="exSave">Save</button>
       </div>
     </form>
   </dialog>

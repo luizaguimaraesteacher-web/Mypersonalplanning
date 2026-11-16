@@ -10,6 +10,7 @@
   --study: #2e9b6a;
   --accent: #3f6fd8;
   --danger: #c2453d;
+  --money: #0e8a7a;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.05);
   color-scheme: light;
@@ -594,3 +595,73 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
 .calslist .sw { width: 14px; height: 14px; border-radius: 4px; background: var(--ec); flex: none; }
 .calslist label { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; font-size: 15px; }
 .calslist input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+
+/* day page: wider so tasks and their notes have room */
+body.view-day main, body.view-money main { max-width: 1180px; }
+.routines-duo .card { min-height: 0; }
+
+/* notes beside each task */
+.tasks { container-type: inline-size; }
+.task .tbody { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr; gap: 4px; }
+.task .tbody .strip { flex: none; }
+.task .nstrip { position: relative; display: none; border-left: 3px solid #e8dcc4; background: var(--paper); }
+.task .tbody.open .nstrip, .task .tbody.has-note .nstrip { display: block; }
+.task .nstrip::before {
+  content: "Notes…"; position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+  color: #cfc7b6; font-style: italic; pointer-events: none; z-index: 1; font-size: 14px;
+}
+.task .nstrip.inked::before { display: none; }
+.ghost .nstrip { visibility: hidden; }
+.ghost .notebtn { visibility: hidden; }
+.notebtn { font-size: 17px; }
+.tbody.has-note + .task-actions .notebtn, .tbody.open + .task-actions .notebtn { color: var(--task); }
+.taskcols { display: none; }
+@container (min-width: 760px) {
+  .task .tbody { grid-template-columns: 3fr 2fr; gap: 10px; }
+  .task .nstrip { display: block; }
+  .notebtn { display: none; }
+}
+@media (min-width: 900px) {
+  .taskcard .taskcols { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; margin: 0 86px 4px 44px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+}
+
+/* busy-only calendars */
+.busytag { color: var(--muted); font-weight: 400; }
+.busyname { color: var(--muted); font-style: italic; }
+.busyhelp { background: var(--soft); border-radius: 10px; padding: 8px 12px; }
+.busyhelp summary { cursor: pointer; color: var(--accent); }
+.busyhelp ol { margin: 6px 0 2px; padding-left: 20px; }
+.busyhelp li { margin: 3px 0; }
+
+/* money */
+body.view-money #toolbar { display: none; }
+.xlist { list-style: none; margin: 0; padding: 0; }
+.xlist > li { border-bottom: 1px solid var(--line); }
+.xlist > li:last-child { border-bottom: 0; }
+.xrow { all: unset; box-sizing: border-box; display: flex; width: 100%; align-items: center; gap: 12px; padding: 9px 2px; cursor: pointer; }
+.xrow:focus-visible { outline: 2px solid var(--accent); border-radius: 8px; }
+.xwhat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.xwhat strong { font-size: 15px; font-weight: 600; }
+.xamt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.xtotal { margin: 0 0 4px; }
+.xtotal b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.xday h3 { display: flex; justify-content: space-between; gap: 10px; margin: 14px 0 2px; }
+.xday:first-child h3 { margin-top: 0; }
+.xday h3 a { color: inherit; text-decoration: none; }
+.xday h3 span { font-variant-numeric: tabular-nums; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.xsum { display: flex; flex-direction: column; gap: 14px; }
+.xhero { display: flex; flex-direction: column; gap: 2px; }
+.xhero strong { font-size: 34px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.xbudget { display: flex; flex-direction: column; gap: 6px; }
+.xbudget label { display: flex; flex-direction: column; gap: 4px; }
+.xbudget input { border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font: inherit; max-width: 200px; background: var(--surface); }
+.meter { height: 10px; border-radius: 999px; background: var(--soft); overflow: hidden; }
+.meter span { display: block; height: 100%; border-radius: 999px; background: var(--money); }
+.meter.over span { background: var(--danger); }
+.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bars li { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px; font-size: 14px; }
+.blabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btrack { height: 14px; }
+.bfill { display: block; height: 100%; background: var(--money); border-radius: 0 4px 4px 0; }
+.bars li:hover .bfill { filter: brightness(.88); }
+.bval { font-variant-numeric: tabular-nums; white-space: nowrap; }
