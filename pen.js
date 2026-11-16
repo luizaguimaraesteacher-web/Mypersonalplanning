@@ -1400,8 +1400,23 @@ function send(o) {
       return [{ id: '', name: 'My calendar', label: 'My calendar', color: CAL_COLORS[0], writable: true }];
     }
     const cals = out.filter(c => c && typeof c.id === 'string').map(c => ({ id: c.id, name: String(c.summary || c.id), busyOnly: c.accessRole === 'freeBusyReader' }));
-    // calendars added by their address (shared with this Google account but not in its list)
-    for (const x of Config.get('extraCals', [])) if (x && x.id && !cals.some(c => c.id === x.id)) cals.push({ id: x.id, name: x.name || x.id, added: true });
+    // calendars added by their address (shared with this Google account but not in its list).
+    // One that is really a listed calendar (addresses ignore capitals) is merged into it, keeping the name you gave it.
+    const extras = Config.get('extraCals', []), same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+    const dupes = extras.filter(x => x && x.id && cals.some(c => same(c.id, x.id)));
+    if (dupes.length) {
+      for (const x of dupes) {
+        const real = cals.find(c => same(c.id, x.id));
+        if (x.name && x.name !== x.id) Config.set('calNames', { ...Config.get('calNames', {}), [real.id]: x.name });
+        // show the real calendar if the copy was shown (the copy was what you were looking at)
+        setCalHidden(real.id, hiddenCals().has(x.id));
+        setCalHidden(x.id, false);
+      }
+      Config.set('extraCals', extras.filter(x => !dupes.includes(x)));
+    }
+    for (const x of Config.get('extraCals', [])) if (x && x.id && !cals.some(c => same(c.id, x.id))) cals.push({ id: x.id, name: x.name || x.id, added: true });
+    const names = Config.get('calNames', {});
+    for (const c of cals) if (names[c.id]) c.name = names[c.id];
     cals.sort((a, b) => isHolidayCal(a.id) - isHolidayCal(b.id)); // your own calendars first, holidays last
     cals.forEach((c, i) => {
       c.color = CAL_COLORS[i % CAL_COLORS.length];
@@ -1566,7 +1581,7 @@ function send(o) {
   $('#acAdd').addEventListener('click', async () => {
     const id = $('#acId').value.trim(), name = $('#acName').value.trim(), msg = $('#acMsg');
     if (!/^[^\s@]+@[^\s@]+$/.test(id)) { msg.textContent = 'Type the calendar\'s address, like name@gmail.com.'; return; }
-    if ((Cals.list || []).some(c => c.id === id)) { msg.textContent = 'That calendar is already in your planner.'; return; }
+    if ((Cals.list || []).some(c => c.id.toLowerCase() === id.toLowerCase())) { msg.textContent = 'That calendar is already in your planner (tick it in the list above to show it).'; return; }
     msg.textContent = 'Checking that the planner can read it…';
     try {
       await connectorEvents(today(), addDays(today(), 1), true, id);
