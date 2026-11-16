@@ -1310,20 +1310,34 @@ function send(o) {
 `;
   const Cal = {
     cache: new Map(),
-    url() { return Config.get('calendarUrl', ''); },
+    stale: false,
+    // One Google account per script link (outside Claude). The first version kept a single link in 'calendarUrl'.
+    accounts() {
+      const list = Config.get('calAccounts', null);
+      if (Array.isArray(list)) return list;
+      const old = Config.get('calendarUrl', '');
+      return old ? [{ id: 'a1', name: 'Google', url: old }] : [];
+    },
+    url() { const a = this.accounts(); return a.length ? a[0].url : ''; },
     async load(date, url = this.url(), force = false, until = addDays(date, 1)) {
-      const key = date + '_' + until;
+      const key = url + '|' + date + '_' + until;
       if (!force && this.cache.has(key)) return this.cache.get(key);
       const from = parse(date).getTime(), to = parse(until).getTime();
       let res;
       try { res = await fetch(`${url}${url.includes('?') ? '&' : '?'}from=${from}&to=${to}`); }
-      catch { throw new Error("Couldn't reach Google. Are you online?"); }
+      catch {
+        // offline: show what was there the last time (kept on this iPad)
+        const saved = lsGet('pp-ev|' + key, null);
+        if (saved) { this.stale = true; return saved; }
+        throw new Error("Couldn't reach Google. Are you online?");
+      }
       if (!res.ok) throw new Error(`Google answered with an error (${res.status}).`);
       let data;
       try { data = await res.json(); }
       catch { throw new Error('Google sent a sign-in page instead of your events. In the deployment, set "Who has access" to "Anyone".'); }
       if (data.error || !Array.isArray(data.events)) throw new Error(data.error || 'Unexpected reply from the script.');
       this.cache.set(key, data.events);
+      lsSet('pp-ev|' + key, data.events);
       return data.events;
     },
   };
@@ -1457,12 +1471,25 @@ function send(o) {
   // `events.failed` lists calendars that couldn't be read.
   async function fetchEvents(from, to, force) {
     if (!EMBED) {
-      const evs = await Cal.load(from, Cal.url(), force, to);
-      return evs.map(e => {
-        const id = e.calendar || 'Calendar';
-        if (!Cals.seen.has(id)) Cals.seen.set(id, { id, name: id, label: id, color: /^#[0-9a-f]{3,8}$/i.test(e.color || '') ? e.color : CAL_COLORS[Cals.seen.size % CAL_COLORS.length] });
-        return { ...e, calId: id, color: Cals.seen.get(id).color };
+      // every connected Google account (one script link each)
+      const accts = Cal.accounts();
+      Cal.stale = false;
+      const results = await Promise.allSettled(accts.map(a => Cal.load(from, a.url, force, to)));
+      const events = [], failed = [];
+      let firstErr = null;
+      results.forEach((r, i) => {
+        const a = accts[i];
+        if (r.status !== 'fulfilled') { failed.push(a.name); firstErr = firstErr || r.reason; return; }
+        for (const e of r.value) {
+          const cal = e.calendar || 'Calendar', id = a.id + '|' + cal;
+          if (!Cals.seen.has(id)) Cals.seen.set(id, { id, name: cal, label: accts.length > 1 && cal.toLowerCase() !== a.name.toLowerCase() ? `${cal} (${a.name})` : cal, color: /^#[0-9a-f]{3,8}$/i.test(e.color || '') ? e.color : CAL_COLORS[Cals.seen.size % CAL_COLORS.length] });
+          events.push({ ...e, calId: id, color: Cals.seen.get(id).color });
+        }
       });
+      if (accts.length && failed.length === accts.length) throw firstErr;
+      events.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
+      events.failed = failed;
+      return events;
     }
     const cals = await calendarList(force);
     const results = await Promise.allSettled(cals.map(c => connectorEvents(from, to, force, c.id || undefined)));
@@ -2031,6 +2058,11 @@ function send(o) {
       const events = await fetchEvents(date, addDays(date, 1), force);
       if (state.date !== date) return;
       drawEvents(body, visibleEvents(events));
+      if (Cal.stale) body.prepend(el('p', { class: 'muted small' }, 'Offline: these are the events from the last time you were online.'));
+      if (events.failed && events.failed.length) body.append(el('p', { class: 'muted small' }, `Couldn't read: ${events.failed.join(', ')}.`));
+      const chips = el('div', { class: 'calchips small-chips' });
+      card.append(chips);
+      renderCalChips(chips, () => renderCalendar());
     } catch (err) {
       if (state.date !== date) return;
       fill(body, el('p', { class: 'small', style: 'color:var(--danger)' }, err.message),
@@ -2041,11 +2073,26 @@ function send(o) {
   function openCalSetup() {
     $('.menu').open = false;
     $('#calScript').value = CAL_SCRIPT;
-    $('#calUrl').value = Cal.url();
+    $('#calUrl').value = '';
+    $('#calName').value = Cal.accounts().length ? '' : 'Personal';
     $('#calMsg').textContent = '';
     $('#calMsg').className = 'small';
-    $('#calDisconnect').hidden = !Cal.url();
+    drawCalAccounts();
     $('#calDlg').showModal();
+  }
+  function drawCalAccounts() {
+    const list = Cal.accounts();
+    $('#calAcctsBox').hidden = !list.length;
+    fill($('#calAccts'), list.map(a => el('li', {},
+      el('span', {}, el('b', {}, a.name), el('small', { class: 'muted' }, ' · …' + a.url.slice(-14))),
+      el('button', { type: 'button', class: 'mini danger', onclick: async () => {
+        if (!(await ask(`Disconnect "${a.name}" from the planner?`, 'Disconnect'))) return;
+        Config.set('calAccounts', Cal.accounts().filter(x => x.id !== a.id));
+        Cal.cache.clear(); Cals.seen.clear();
+        drawCalAccounts();
+        if (document.body.classList.contains('view-day')) renderCalendar();
+      } }, 'Disconnect'))));
+    $('#calConnect').textContent = list.length ? 'Add this account' : 'Connect';
   }
   $('#calSetupBtn').addEventListener('click', openCalSetup);
   if (EMBED) $('#calSetupBtn').hidden = true;
@@ -2056,27 +2103,23 @@ function send(o) {
   });
   $('#calConnect').addEventListener('click', async () => {
     const url = $('#calUrl').value.trim(), msg = $('#calMsg');
+    const name = $('#calName').value.trim() || `Google ${Cal.accounts().length + 1}`;
     if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) {
       msg.className = 'small err'; msg.textContent = 'Paste the Web app URL. It starts with https://script.google.com/macros/s/';
       return;
     }
+    if (Cal.accounts().some(a => a.url === url)) { msg.className = 'small err'; msg.textContent = 'That account is already connected.'; return; }
     msg.className = 'small'; msg.textContent = 'Checking…';
     try {
       const events = await Cal.load(today(), url, true);
-      Config.set('calendarUrl', url);
-      Cal.cache.clear();
+      Config.set('calAccounts', Cal.accounts().concat([{ id: 'a' + uid(), name, url }]));
+      Cal.cache.clear(); Cals.seen.clear();
       msg.className = 'small ok';
-      msg.textContent = `Connected! ${events.length} event${events.length === 1 ? '' : 's'} on your calendar today.`;
-      $('#calDisconnect').hidden = false;
+      msg.textContent = `Connected "${name}": ${events.length} event${events.length === 1 ? '' : 's'} today. To add another Gmail account, sign in to it at script.google.com and repeat the steps.`;
+      $('#calUrl').value = ''; $('#calName').value = '';
+      drawCalAccounts();
       if (document.body.classList.contains('view-day')) renderCalendar();
     } catch (err) { msg.className = 'small err'; msg.textContent = err.message; }
-  });
-  $('#calDisconnect').addEventListener('click', async () => {
-    if (!(await ask('Disconnect Google Calendar from the planner?', 'Disconnect'))) return;
-    Store.remove('cfg-calendarUrl');
-    Cal.cache.clear();
-    $('#calDlg').close();
-    if (document.body.classList.contains('view-day')) renderCalendar();
   });
 
   // ---------- Granola notes ----------

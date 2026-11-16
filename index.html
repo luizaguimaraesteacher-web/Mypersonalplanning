@@ -341,24 +341,29 @@
   <dialog id="calDlg">
     <form method="dialog" class="dlg">
       <h2>Connect Google Calendar</h2>
-      <p class="small">The planner shows each day's events from your Google Calendar. You set it up once. It's easier on a computer, and then you paste the link here on your iPad.</p>
+      <div id="calAcctsBox" hidden>
+        <h3 class="subhead">Connected accounts</h3>
+        <ul id="calAccts" class="calslist hidelist"></ul>
+      </div>
+      <p class="small">The planner shows each day's events from your Google Calendar. You set it up once <b>for each Gmail account</b>. It's easier on a computer, and then you paste the link here on your iPad.</p>
       <ol class="setup small">
         <li><button type="button" class="mini" id="copyScript">Copy the script</button> <span id="copyMsg" class="muted"></span></li>
-        <li>Go to <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a> and sign in. A new project opens. Delete the text that's there and paste the script.</li>
+        <li>Go to <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a> and sign in <b>with the Gmail account you're connecting</b> (with several accounts, check the photo at the top right). A new project opens. Delete the text that's there and paste the script.</li>
         <li>Click <b>Deploy → New deployment</b>. Click the gear next to "Select type" and choose <b>Web app</b>.</li>
         <li>Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>, then click <b>Deploy</b>.</li>
         <li>Click <b>Authorize access</b> and choose your account. Google warns that the app isn't verified, because you made it yourself: click <b>Advanced → Go to … (unsafe)</b> → <b>Allow</b>.</li>
         <li>Copy the <b>Web app URL</b> and paste it below.</li>
       </ol>
       <textarea id="calScript" readonly rows="5" aria-label="Script"></textarea>
+      <label class="small"><b>Name for this account</b>
+        <input id="calName" placeholder="e.g. Personal, Work" autocomplete="off" />
+      </label>
       <label class="small"><b>Web app URL</b>
         <input id="calUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" />
       </label>
       <p class="muted small">Keep this link private: anyone who has it can see your calendar events. It only reads your calendar; it can't change anything.</p>
       <p id="calMsg" class="small"></p>
       <div class="dlg-actions">
-        <button type="button" class="mini danger" id="calDisconnect">Disconnect</button>
-        <span style="flex:1"></span>
         <button type="button" class="mini" id="calClose">Close</button>
         <button type="button" class="mini primary" id="calConnect">Connect</button>
       </div>
