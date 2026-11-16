@@ -1631,6 +1631,65 @@ function send(o) {
     });
   }
 
+  // ---- swipe an event row to the left for its options ----
+  let openSwipe = null;
+  function toggleSwipe(li, open) {
+    const want = open == null ? !li.classList.contains('open') : open;
+    if (openSwipe && openSwipe !== li) openSwipe.classList.remove('open');
+    li.classList.toggle('open', want);
+    openSwipe = want ? li : null;
+  }
+  document.addEventListener('pointerdown', e => { if (openSwipe && !openSwipe.contains(e.target)) toggleSwipe(openSwipe, false); });
+  function bindSwipe(li, row) {
+    let x0 = 0, y0 = 0, id = null, dx = 0, dragging = false;
+    const W = () => li.querySelector('.evacts').offsetWidth || 240;
+    row.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse') return;
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; dragging = false;
+    });
+    row.addEventListener('pointermove', e => {
+      if (e.pointerId !== id) return;
+      const mx = e.clientX - x0, my = e.clientY - y0;
+      if (!dragging && Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.5) { dragging = true; li.classList.add('dragging'); try { row.setPointerCapture(id); } catch { /* ignore */ } }
+      if (!dragging) return;
+      const base = li.classList.contains('open') ? -W() : 0;
+      dx = Math.max(-W() - 20, Math.min(0, base + mx));
+      row.style.transform = `translateX(${dx}px)`;
+    });
+    const end = e => {
+      if (e.pointerId !== id) return;
+      id = null;
+      if (!dragging) return;
+      li.classList.remove('dragging');
+      row.style.transform = '';
+      toggleSwipe(li, dx < -W() / 3);
+      // a swipe is not a tap on the event
+      const stop = ev => { ev.stopPropagation(); ev.preventDefault(); };
+      row.addEventListener('click', stop, { capture: true, once: true });
+      setTimeout(() => row.removeEventListener('click', stop, { capture: true }), 400);
+    };
+    row.addEventListener('pointerup', end);
+    row.addEventListener('pointercancel', end);
+  }
+  function eventActions(ev, li) {
+    const cal = (Cals.list || []).find(c => c.id === ev.calId);
+    const ro = !!(cal && (cal.role === 'reader' || cal.role === 'freeBusyReader'));
+    const rec = Store.items.get(classKey(ev)), done = !!(rec && rec.status === 'happened');
+    const act = (cls, label, title, fn, off) => el('button', { class: 'evact ' + cls, title: off ? 'This calendar is view-only for your connected Google account' : title, disabled: off ? true : null,
+      onclick: e => { e.stopPropagation(); toggleSwipe(li, false); fn(); } }, label);
+    return el('div', { class: 'evacts' },
+      act('move', '⏱ Move', 'Find another time', () => openMoveEvent(ev), ro),
+      act('allday', '↦ All-day', 'Make it an all-day event that doesn\'t block time', () => makeAllDay(ev), ro),
+      act('done' + (done ? ' on' : ''), done ? '↺ Undo' : '✓ Done', done ? 'Mark as not done' : 'Mark as done', () => {
+        const c = recFor(ev);
+        c.status = c.status === 'happened' ? '' : 'happened';
+        Store.save(c);
+        toast(c.status ? 'Marked as done.' : 'Not done.');
+        renderCalendar();
+      }),
+      act('del', '🗑 Delete', 'Delete from Google Calendar', () => deleteEventFlow(ev, false), ro));
+  }
+
   const EVENTS_NEXT = 3;
   const clashId = (a, b) => [a.id || 't' + a.start, b.id || 't' + b.start].sort().join('|') + '|' + Math.min(a.start, b.start);
   function solveClash(ev, others) {
@@ -1642,7 +1701,8 @@ function send(o) {
   // Hotel or car rental saved as one long timed event: make it all-day (and free), so it stays in the calendar without blocking time.
   async function makeAllDay(ev) {
     const first = iso(new Date(ev.start)), last = iso(new Date(ev.end - 1));
-    if (!(await ask(`Make "${ev.title || 'this event'}" an all-day event from ${fmt(first, { month: 'short', day: 'numeric' })} to ${fmt(last, { month: 'short', day: 'numeric' })}? It stays in your Google Calendar but won't block your time.`, 'Make all-day'))) return;
+    const range = first === last ? `on ${fmt(first, { weekday: 'short', month: 'short', day: 'numeric' })}` : `from ${fmt(first, { month: 'short', day: 'numeric' })} to ${fmt(last, { month: 'short', day: 'numeric' })}`;
+    if (!(await ask(`Make "${ev.title || 'this event'}" an all-day event ${range}? It stays in your Google Calendar but won't block your time.`, 'Make all-day'))) return;
     const base = { eventId: ev.id, notificationLevel: 'NONE', ...(ev.calId ? { calendarId: ev.calId } : {}) };
     try {
       await calCall('update_event', { ...base, allDay: true, startTime: first + 'T00:00:00', endTime: addDays(last, 1) + 'T00:00:00', availability: 'AVAILABILITY_FREE' });
@@ -1695,7 +1755,8 @@ function send(o) {
           el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
           rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status)) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
         sub ? el('span', { class: 'evsub' }, sub) : null];
-      return el('li', { class: (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
+      const li = el('li', { class: 'swipe ' + (ev.end && ev.end < now ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true });
+      const row = el('div', { class: 'evrow' },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, timeOf(ev.start)),
         ev.busy ? el('span', { class: 'what', title: 'This calendar only shares when you are busy' }, what)
@@ -1706,6 +1767,11 @@ function send(o) {
           EMBED && ev.id && !ev.busy ? el('button', { class: 'mini', onclick: () => openMoveEvent(ev) }, 'Move…') : null) : null,
         ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
+      if (ev.busy || !EMBED) { li.append(row); return li; }
+      li.append(eventActions(ev, li), row);
+      row.querySelector('.what').after(el('button', { class: 'evdots', title: 'More options', 'aria-label': 'Options for ' + (ev.title || 'this event'), onclick: e => { e.stopPropagation(); toggleSwipe(li); } }, '⋯'));
+      bindSwipe(li, row);
+      return li;
     });
     const clashCount = [...clash.keys()].filter(e => !(e.end && e.end < now)).length;
     const later = timed.length - shown.size;
@@ -1874,7 +1940,9 @@ function send(o) {
   const statusLabel = s => (STATUSES.find(x => x[0] === s) || [, ''])[1];
 
   const hasNotes = c => !!(c && ((c.covered || c.homework || c.notes || c.transcript || '').trim() || (c.granola && c.granola.url)));
-  function openClassFor(ev) {
+  function openClassFor(ev) { go('class/' + recFor(ev).id); }
+  // The planner's notes record for a calendar event (made the first time it's needed)
+  function recFor(ev) {
     const id = classKey(ev);
     let c = Store.items.get(id);
     if (!c) {
@@ -1886,7 +1954,7 @@ function send(o) {
     if (!c.gCancelled) c.gTitle = ev.title || c.gTitle;
     if (!c.gMoved) { c.start = ev.start; c.end = ev.end || c.end; c.date = iso(new Date(ev.start)); }
     Store.save(c);
-    go('class/' + id);
+    return c;
   }
   // The Google event behind a class, as the editor needs it
   const eventOf = c => ({

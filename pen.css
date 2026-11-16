@@ -784,3 +784,29 @@ button.adchip { cursor: pointer; }
 .adchip small { color: var(--muted); font-size: 10px; }
 .adgroup { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; }
 .adfix { border: 1px dashed var(--line); background: var(--surface); border-radius: 4px; padding: 1px 6px; font: inherit; font-size: 11px; color: var(--accent); cursor: pointer; white-space: nowrap; }
+
+/* swipe an event left for its options */
+.events.timed > li.swipe { position: relative; overflow: hidden; display: block; padding: 0; touch-action: pan-y; }
+.events.timed > li.swipe > .evrow { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: 10px; padding: 6px 0; background: var(--surface); transition: transform .2s ease; }
+.events.timed > li.next.swipe > .evrow { padding: 10px 0; }
+.events.timed > li.past.swipe > .evrow { padding: 3px 0; }
+.events.timed > li.clash.swipe > .evrow { background: #fff7e6; padding-left: 10px; padding-right: 10px; }
+.events.timed > li.clash.swipe { margin: 0 -10px; padding: 0; }
+.events.timed > li.swipe.dragging > .evrow { transition: none; }
+.events.timed > li.swipe.open > .evrow { transform: translateX(calc(-1 * var(--actw, 304px))); }
+.evacts { position: absolute; inset: 0 0 0 auto; display: flex; width: var(--actw, 304px); }
+.evact { flex: 1; border: 0; color: #fff; font: inherit; font-size: 12px; font-weight: 700; padding: 0 4px; cursor: pointer; }
+.evact.move { background: #3f6fd8; }
+.evact.allday { background: #5b6778; }
+.evact.done { background: #1f7a52; }
+.evact.done.on { background: #77736b; }
+.evact.del { background: #c2453d; }
+.evact:disabled { opacity: .45; cursor: not-allowed; }
+.evdots { border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; padding: 0 4px; cursor: pointer; align-self: flex-start; display: none; }
+.events.timed > li.swipe .chev { display: none; }
+@media (hover: hover) { .evdots { display: block; } }
+@media (hover: none) { .events.timed > li.swipe .chev { display: block; } }
+@media (max-width: 620px) { .events.timed > li.swipe { --actw: 260px; } .evact { font-size: 11px; } }
+.events.timed > li.past.swipe > .evrow > .what, .events.timed > li.past.swipe > .evrow > .when, .events.timed > li.past.swipe > .evrow > .cdot { opacity: .6; }
+.evdots { display: block !important; }
+.events.timed > li.swipe .chev { display: none !important; }
