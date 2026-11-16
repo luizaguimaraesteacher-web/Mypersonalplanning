@@ -637,36 +637,76 @@ body.view-day main, body.view-money main { max-width: 1180px; }
 
 /* money */
 body.view-money #toolbar { display: none; }
+.moneyhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 16px; }
+.monthnav { display: flex; align-items: center; gap: 14px; }
+.monthnav .daytitle { text-align: left; min-width: 0; }
+.monthnav h1 { margin: 0; font-size: 26px; }
+.monthnav p { margin: 0; }
+.moneyactions { display: flex; gap: 8px; flex-wrap: wrap; }
+.mini.primary.in { background: var(--money); border-color: var(--money); }
+.linkbtn { text-decoration: none; color: var(--accent); }
+.xstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stat { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--soft); min-width: 0; }
+.stat .slabel { font-size: 13px; font-weight: 600; color: var(--muted); }
+.stat strong { font-size: 26px; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat .ssub { font-size: 12px; color: var(--muted); }
+.stat.in .slabel::before { content: "▲ "; color: var(--money); }
+.stat.out .slabel::before { content: "▼ "; color: var(--muted); }
+.stat.over .ssub, .stat.neg .slabel, .stat.neg strong { color: var(--danger); }
+.meter { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; margin-top: 12px; }
+.meter span { display: block; height: 100%; border-radius: 999px; background: var(--money); }
+.meter.over span { background: var(--danger); }
+.xbudget { margin-top: 10px; font-size: 14px; }
+.xbudget summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.xbudget label { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.xbudget input { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; max-width: 220px; background: var(--surface); }
+.cattable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cattable th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.cattable td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.cattable th:first-child, .cattable td:first-child { padding-left: 0; }
+.cattable th:last-child, .cattable td:last-child { padding-right: 0; }
+.cattable tbody tr:hover td { background: #faf8f3; }
+.cattable tfoot td { font-weight: 700; border-bottom: 0; }
+.cattable .num, .cattable th:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.catname { font-weight: 600; white-space: nowrap; }
+.barcol { width: 40%; }
+.btrack { display: block; height: 12px; }
+.bfill { display: block; height: 100%; background: var(--money); border-radius: 0 4px 4px 0; }
+.cattable.income .bfill { background: #5aa897; }
+.seg { display: inline-flex; background: var(--soft); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.seg.big { display: flex; }
+.seg.big button { flex: 1; padding: 8px 12px; font-size: 15px; }
+#exTypeIn.on { color: var(--money); }
 .xlist { list-style: none; margin: 0; padding: 0; }
 .xlist > li { border-bottom: 1px solid var(--line); }
 .xlist > li:last-child { border-bottom: 0; }
 .xrow { all: unset; box-sizing: border-box; display: flex; width: 100%; align-items: center; gap: 12px; padding: 9px 2px; cursor: pointer; }
 .xrow:focus-visible { outline: 2px solid var(--accent); border-radius: 8px; }
+.xcat { flex: none; width: 96px; font-size: 12px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .xwhat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.xwhat strong { font-size: 15px; font-weight: 600; }
+.xwhat strong { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xcat-inline { display: none; }
 .xamt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-.xtotal { margin: 0 0 4px; }
-.xtotal b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.xrow.income .xamt { color: var(--money); }
+.xtotal { display: flex; gap: 16px; margin: 0 0 4px; }
+.xtotal b { font-size: 16px; font-variant-numeric: tabular-nums; }
 .xday h3 { display: flex; justify-content: space-between; gap: 10px; margin: 14px 0 2px; }
 .xday:first-child h3 { margin-top: 0; }
 .xday h3 a { color: inherit; text-decoration: none; }
-.xday h3 span { font-variant-numeric: tabular-nums; color: var(--muted); text-transform: none; letter-spacing: 0; }
-.xsum { display: flex; flex-direction: column; gap: 14px; }
-.xhero { display: flex; flex-direction: column; gap: 2px; }
-.xhero strong { font-size: 34px; font-variant-numeric: tabular-nums; line-height: 1.15; }
-.xbudget { display: flex; flex-direction: column; gap: 6px; }
-.xbudget label { display: flex; flex-direction: column; gap: 4px; }
-.xbudget input { border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font: inherit; max-width: 200px; background: var(--surface); }
-.meter { height: 10px; border-radius: 999px; background: var(--soft); overflow: hidden; }
-.meter span { display: block; height: 100%; border-radius: 999px; background: var(--money); }
-.meter.over span { background: var(--danger); }
-.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.bars li { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px; font-size: 14px; }
-.blabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.btrack { height: 14px; }
-.bfill { display: block; height: 100%; background: var(--money); border-radius: 0 4px 4px 0; }
-.bars li:hover .bfill { filter: brightness(.88); }
-.bval { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.xday h3 span { font-variant-numeric: tabular-nums; color: var(--muted); text-transform: none; letter-spacing: 0; white-space: pre; }
+#moneyCount { margin: -4px 0 8px; }
+@media (max-width: 620px) {
+  .xstats { grid-template-columns: 1fr; }
+  .stat { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+  .stat strong { font-size: 20px; margin-left: auto; }
+  .stat .ssub { flex-basis: 100%; }
+  .barcol { display: none; }
+  .cattable td:nth-child(5), .cattable th:nth-child(5) { display: none; }
+  .xcat { display: none; }
+  .xcat-inline { display: inline; }
+}
 
 /* compact calendar card */
 .allday-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 8px; border-bottom: 1px solid var(--line); }
@@ -770,18 +810,25 @@ button.adchip { cursor: pointer; }
 
     <!-- MONEY -->
     <section id="view-money" class="view">
-      <div class="dayhead">
-        <button class="round" id="prevMonthX" aria-label="Previous month">‹</button>
-        <div class="daytitle"><h1 id="moneyTitle">Money</h1><p class="muted">Your expenses this month</p></div>
-        <button class="round" id="nextMonthX" aria-label="Next month">›</button>
-        <div class="dayjump">
-          <button class="mini" id="csvBtn">⤓ CSV</button>
-          <button class="mini primary" id="addExpenseBtn">+ Expense</button>
+      <div class="moneyhead">
+        <div class="monthnav">
+          <button class="round" id="prevMonthX" aria-label="Previous month">‹</button>
+          <div class="daytitle"><h1 id="moneyTitle">Money</h1><p id="moneySub" class="muted"></p></div>
+          <button class="round" id="nextMonthX" aria-label="Next month">›</button>
+        </div>
+        <div class="moneyactions">
+          <button class="mini primary" id="addExpenseBtn">− Expense</button>
+          <button class="mini primary in" id="addIncomeBtn">+ Income</button>
+          <button class="mini" id="csvBtn" title="Download this month as a spreadsheet">⤓ CSV</button>
         </div>
       </div>
       <div id="moneySummary"></div>
       <section class="card">
-        <div class="card-head"><h2><span class="dot" style="background:var(--money)"></span>Expenses</h2><span id="moneyCount" class="muted small"></span></div>
+        <div class="card-head">
+          <h2>Everything this month</h2>
+          <div class="seg" id="moneyFilter"></div>
+        </div>
+        <p id="moneyCount" class="muted small"></p>
         <div id="moneyList"></div>
       </section>
     </section>
@@ -1079,22 +1126,27 @@ button.adchip { cursor: pointer; }
     </form>
   </dialog>
 
-  <!-- EXPENSE -->
+  <!-- EXPENSE / INCOME -->
   <dialog id="expenseDlg">
     <form method="dialog" class="dlg" id="expenseForm" autocomplete="off">
       <h2 id="exDlgTitle">New expense</h2>
+      <div class="seg big" role="group" aria-label="Type">
+        <button type="button" id="exTypeOut" class="on">− Expense</button>
+        <button type="button" id="exTypeIn">+ Income</button>
+      </div>
       <div class="evrow">
-        <label class="small grow"><b>Amount</b><input id="exAmount" inputmode="decimal" placeholder="0,00" /></label>
+        <label class="small"><b>Amount</b><input id="exAmount" inputmode="decimal" placeholder="0,00" /></label>
         <label class="small"><b>Currency</b><select id="exCurrency"></select></label>
       </div>
-      <label class="small"><b>What was it?</b><input id="exDesc" placeholder="e.g. Lunch, Uber, books" /></label>
+      <label class="small" id="exDescLabel"><b>What was it?</b><input id="exDesc" /></label>
       <div class="evrow">
-        <label class="small grow"><b>Category</b><select id="exCategory"></select></label>
-        <label class="small grow"><b>Paid with</b><select id="exMethod"></select></label>
+        <label class="small"><b>Category</b><select id="exCategory"></select></label>
+        <label class="small" id="exMethodLabel"><b>Paid with</b><select id="exMethod"></select></label>
       </div>
+      <label class="small" id="exNewCatLabel" hidden><b>New category name</b><input id="exNewCat" placeholder="e.g. Kids, Pets, Car" /></label>
       <label class="small"><b>Date</b><input type="date" id="exDate" /></label>
       <label class="small"><b>Note (optional)</b><input id="exNote" /></label>
-      <p id="exMsg" class="small" role="status"></p>
+      <p id="exMsg" class="small err-text" role="status"></p>
       <div class="dlg-actions">
         <button type="button" class="mini danger" id="exDelete">Delete</button>
         <span style="flex:1"></span>
@@ -2254,7 +2306,22 @@ function send(o) {
       c.writable = !isHolidayCal(c.id);
     });
     Cals.list = cals.length ? cals : [{ id: '', name: 'My calendar', label: 'My calendar', color: CAL_COLORS[0], writable: true }];
+    applyCalSeed(Cals.list);
     return Cals.list;
+  }
+
+  // A private list of calendars to show (added to the published page only): everything else starts hidden.
+  function applyCalSeed(cals) {
+    const tag = document.getElementById('calSeed');
+    if (!tag) return;
+    let seed;
+    try { seed = JSON.parse(tag.textContent); } catch { return; }
+    if (!seed || !Array.isArray(seed.show) || Config.get('calSeeded', 0) >= (seed.version || 1)) return;
+    const want = seed.show.map(x => String(x).toLowerCase());
+    const match = c => want.some(w => (c.name + ' ' + c.id).toLowerCase().includes(w));
+    if (!cals.some(match)) return; // not this account's calendars: leave as is
+    Config.set('hiddenCals', cals.filter(c => !match(c)).map(c => c.id));
+    Config.set('calSeeded', seed.version || 1);
   }
 
   // Events from every calendar. Hidden calendars are filtered when drawing, so switching is instant.
@@ -2289,7 +2356,18 @@ function send(o) {
     events.failed = failed;
     return events;
   }
-  const visibleEvents = events => { const h = hiddenCals(); return events.filter(e => !h.has(e.calId)); };
+  // Hidden calendars are left out, and the same event on two calendars (same name and time) shows once.
+  const visibleEvents = events => {
+    const h = hiddenCals(), seen = new Set(), out = [];
+    for (const e of events) {
+      if (h.has(e.calId)) continue;
+      const key = (e.title || '').trim().toLowerCase() + '|' + e.start + '|' + e.end;
+      if (e.title && seen.has(key)) continue;
+      seen.add(key);
+      out.push(e);
+    }
+    return out;
+  };
 
   // Buttons to switch each calendar on and off
   async function renderCalChips(box, onChange) {
@@ -2297,15 +2375,14 @@ function send(o) {
     try { cals = await calendarList(); } catch { fill(box); return; }
     const h = hiddenCals();
     const manage = EMBED ? el('button', { class: 'calchip all', title: 'Add or remove calendars', onclick: () => openCalendars(onChange) }, '+ Calendars') : null;
-    const busyHint = EMBED && cals.some(c => c.busyOnly) ? el('button', { class: 'calchip all', onclick: () => openCalendars(onChange) }, 'Only seeing "Busy"? How to fix') : null;
+    const busyHint = EMBED && cals.some(c => c.busyOnly && !h.has(c.id)) ? el('button', { class: 'calchip all', onclick: () => openCalendars(onChange) }, 'Only seeing "Busy"? How to fix') : null;
     if (cals.length < 2) { fill(box, manage, busyHint); return; }
     fill(box,
-      cals.map(c => el('button', {
+      cals.filter(c => !h.has(c.id)).map(c => el('button', {
         class: 'calchip' + (h.has(c.id) ? '' : ' on'), style: `--ec:${c.color}`, 'aria-pressed': String(!h.has(c.id)),
         title: (h.has(c.id) ? 'Show ' : 'Hide ') + c.label,
         onclick: () => { setCalHidden(c.id, !hiddenCals().has(c.id)); onChange(); },
       }, el('span', { class: 'sw' }), c.label, c.busyOnly ? el('small', { class: 'busytag' }, ' busy only') : null)),
-      h.size ? el('button', { class: 'calchip all', onclick: () => { Config.set('hiddenCals', []); onChange(); } }, 'Show all') : null,
       manage, busyHint);
   }
 
@@ -3997,33 +4074,56 @@ function send(o) {
 
   // ---------- routing ----------
 
-  // ---------- money: expenses ----------
+  // ---------- money: expenses and income ----------
+  // Stored as kind 'expense' with type 'income' for money coming in (older items have no type = expense).
   const CURRENCIES = ['BRL', 'USD', 'EUR', 'GBP'];
-  const CATEGORIES = ['Food', 'Groceries', 'Transport', 'Home', 'Bills', 'Health', 'Education', 'Work', 'Shopping', 'Leisure', 'Gifts', 'Other'];
+  const BASE_CATS = {
+    expense: ['Food', 'Groceries', 'Transport', 'Home', 'Bills', 'Health', 'Education', 'Work', 'Shopping', 'Leisure', 'Travel', 'Gifts', 'Other'],
+    income: ['Classes', 'Salary', 'Freelance', 'Sales', 'Refund', 'Gift', 'Other'],
+  };
   const METHODS = ['Pix', 'Credit card', 'Debit card', 'Cash', 'Transfer', 'Other'];
+  const isIncome = x => x.type === 'income';
+  const catsFor = type => [...new Set([...BASE_CATS[type], ...((Config.get('moneyCats', {})[type]) || [])])];
   const money = (n, cur) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur }).format(n); } catch { return cur + ' ' + n.toFixed(2); } };
   // "1.234,56", "1,234.56", "12,5" and "12.5" all read as numbers
   function readAmount(raw) {
     let v = String(raw || '').replace(/[^\d.,-]/g, '');
     if (!v) return NaN;
+    if (/^\d{1,3}([.,]\d{3})+$/.test(v) && !(v.includes('.') && v.includes(','))) v = v.replace(/[.,]/g, ''); // 3.500 or 3,500 = three thousand five hundred
     const lc = v.lastIndexOf(','), ld = v.lastIndexOf('.');
     if (lc > ld) v = v.replace(/\./g, '').replace(',', '.');
     else v = v.replace(/,/g, '');
     return Math.round(parseFloat(v) * 100) / 100;
   }
-  const expenses = month => Store.list('expense').filter(x => !month || x.date.startsWith(month)).sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
+  const moneyItems = month => Store.list('expense').filter(x => !month || x.date.startsWith(month)).sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
   const totals = list => { const t = {}; for (const x of list) t[x.currency] = (t[x.currency] || 0) + x.amount; return t; };
   const totalText = list => { const t = totals(list); const k = Object.keys(t); return k.length ? k.map(c => money(t[c], c)).join(' + ') : money(0, Config.get('currency', 'BRL')); };
+  const sumIn = (list, cur) => list.filter(x => x.currency === cur).reduce((a, x) => a + x.amount, 0);
+  const monthName = m => parse(m + '-01').toLocaleDateString(undefined, { month: 'long' });
+  const shiftMonth = (m, n) => { const d = parse(m + '-01'); d.setMonth(d.getMonth() + n); return iso(d).slice(0, 7); };
 
-  let editingExpense = null, expenseDone = null;
+  // ---- the add / edit dialog ----
+  let editingMoney = null, moneyDone = null, moneyType = 'expense';
   const opts = (sel, list, val) => fill(sel, list.map(v => el('option', { value: v, selected: v === val ? true : null }, v)));
-  function openExpense(x, date, after) {
-    editingExpense = x; expenseDone = after;
-    $('#exDlgTitle').textContent = x ? 'Edit expense' : 'New expense';
+  function setMoneyType(type, keepCat) {
+    moneyType = type;
+    $('#exTypeOut').classList.toggle('on', type === 'expense');
+    $('#exTypeIn').classList.toggle('on', type === 'income');
+    $('#exDlgTitle').textContent = (editingMoney ? 'Edit ' : 'New ') + (type === 'income' ? 'income' : 'expense');
+    $('#exDescLabel b').textContent = type === 'income' ? 'Where is it from?' : 'What was it?';
+    $('#exDesc').placeholder = type === 'income' ? 'e.g. Classes with Ana, salary' : 'e.g. Lunch, Uber, books';
+    $('#exMethodLabel b').textContent = type === 'income' ? 'Received by' : 'Paid with';
+    const cats = catsFor(type), cur = keepCat && cats.includes(keepCat) ? keepCat : cats[0];
+    fill($('#exCategory'), cats.map(v => el('option', { value: v, selected: v === cur ? true : null }, v)), el('option', { value: '__new' }, '+ New category…'));
+    $('#exNewCatLabel').hidden = true;
+  }
+  function openMoney(x, date, after, type) {
+    editingMoney = x; moneyDone = after;
     $('#exAmount').value = x ? String(x.amount).replace('.', (1.5).toLocaleString().charAt(1)) : '';
     opts($('#exCurrency'), CURRENCIES, x ? x.currency : Config.get('currency', 'BRL'));
-    opts($('#exCategory'), CATEGORIES, x ? x.category : 'Food');
     opts($('#exMethod'), METHODS, x ? x.method : Config.get('method', 'Pix'));
+    setMoneyType(x ? (isIncome(x) ? 'income' : 'expense') : (type || 'expense'), x && x.category);
+    $('#exNewCat').value = '';
     $('#exDesc').value = x ? x.desc : '';
     $('#exNote').value = x ? x.note || '' : '';
     $('#exDate').value = x ? x.date : (date || today());
@@ -4032,47 +4132,97 @@ function send(o) {
     $('#expenseDlg').showModal();
     if (!x) setTimeout(() => $('#exAmount').focus(), 50);
   }
+  $('#exTypeOut').addEventListener('click', () => setMoneyType('expense'));
+  $('#exTypeIn').addEventListener('click', () => setMoneyType('income'));
+  $('#exCategory').addEventListener('change', e => {
+    const isNew = e.target.value === '__new';
+    $('#exNewCatLabel').hidden = !isNew;
+    if (isNew) setTimeout(() => $('#exNewCat').focus(), 30);
+  });
   $('#exCancel').addEventListener('click', () => $('#expenseDlg').close());
   $('#exSave').addEventListener('click', () => {
     const amount = readAmount($('#exAmount').value), date = $('#exDate').value;
     if (!(amount > 0)) { $('#exMsg').textContent = 'Type how much it was, like 25,90.'; return; }
     if (!isDate(date)) { $('#exMsg').textContent = 'Pick a date.'; return; }
-    const x = editingExpense || { id: 'x-' + uid(), kind: 'expense', created: Date.now() };
-    Object.assign(x, { amount, date, currency: $('#exCurrency').value, category: $('#exCategory').value, method: $('#exMethod').value,
+    let category = $('#exCategory').value;
+    if (category === '__new') {
+      category = $('#exNewCat').value.trim().slice(0, 40);
+      if (!category) { $('#exMsg').textContent = 'Type a name for the new category.'; return; }
+      const all = { ...Config.get('moneyCats', {}) };
+      all[moneyType] = [...new Set([...(all[moneyType] || []), category])];
+      Config.set('moneyCats', all);
+    }
+    const x = editingMoney || { id: 'x-' + uid(), kind: 'expense', created: Date.now() };
+    Object.assign(x, { type: moneyType, amount, date, currency: $('#exCurrency').value, category, method: $('#exMethod').value,
       desc: $('#exDesc').value.trim().slice(0, 200), note: $('#exNote').value.trim().slice(0, 500) });
-    Config.set('currency', x.currency); Config.set('method', x.method);
+    Config.set('currency', x.currency);
+    if (moneyType === 'expense') Config.set('method', x.method);
     Store.save(x);
     $('#expenseDlg').close();
-    toast(editingExpense ? 'Expense updated.' : 'Expense added.');
-    if (expenseDone) expenseDone();
+    toast((editingMoney ? 'Updated' : 'Added') + (moneyType === 'income' ? ' income.' : ' expense.'));
+    if (moneyDone) moneyDone();
   });
   $('#exDelete').addEventListener('click', async () => {
-    const x = editingExpense;
+    const x = editingMoney;
     $('#expenseDlg').close();
     if (!x) return;
-    if (await ask(`Delete "${x.desc || x.category}" (${money(x.amount, x.currency)})?`, 'Delete')) { Store.remove(x.id); if (expenseDone) expenseDone(); }
+    if (await ask(`Delete "${x.desc || x.category}" (${money(x.amount, x.currency)})?`, 'Delete')) { Store.remove(x.id); if (moneyDone) moneyDone(); }
     else $('#expenseDlg').showModal();
   });
 
-  function expenseRow(x, after, showDate) {
+  function moneyRow(x, after) {
+    const inc = isIncome(x);
     return el('li', {},
-      el('button', { class: 'xrow', onclick: () => openExpense(x, null, after) },
+      el('button', { class: 'xrow' + (inc ? ' income' : ''), onclick: () => openMoney(x, null, after) },
+        el('span', { class: 'xcat' }, x.category),
         el('span', { class: 'xwhat' }, el('strong', {}, x.desc || x.category),
-          el('span', { class: 'muted small' }, [showDate ? fmt(x.date, { weekday: 'short', day: 'numeric' }) : null, x.category, x.method, x.note || null].filter(Boolean).join(' · '))),
-        el('span', { class: 'xamt' }, money(x.amount, x.currency))));
+          el('span', { class: 'muted small' }, el('span', { class: 'xcat-inline' }, x.category + ' · '), [x.method, x.note || null].filter(Boolean).join(' · '))),
+        el('span', { class: 'xamt' }, (inc ? '+ ' : '− ') + money(x.amount, x.currency))));
   }
 
+  // ---- the day's Money card ----
   function renderMoneyCard() {
-    const card = $('#moneyCard'), date = state.date, list = expenses().filter(x => x.date === date);
+    const card = $('#moneyCard'), date = state.date, list = moneyItems().filter(x => x.date === date);
     const again = () => { if (state.date === date) renderMoneyCard(); };
+    const out = list.filter(x => !isIncome(x)), inc = list.filter(isIncome);
     fill(card,
       el('div', { class: 'card-head' },
         el('h2', {}, el('span', { class: 'dot', style: 'background:var(--money)' }), 'Money'),
         el('span', { class: 'head-actions' },
-          el('button', { class: 'mini', onclick: () => openExpense(null, date, again) }, '+ Expense'),
-          el('a', { class: 'muted small', href: '#money' }, 'Month ›'))),
-      list.length ? el('p', { class: 'xtotal' }, el('span', { class: 'muted small' }, 'Spent this day '), el('b', {}, totalText(list))) : el('p', { class: 'muted small' }, 'Nothing spent this day. Tap + Expense to add one.'),
-      list.length ? el('ul', { class: 'xlist' }, list.map(x => expenseRow(x, again))) : null);
+          el('button', { class: 'mini', onclick: () => openMoney(null, date, again, 'expense') }, '− Expense'),
+          el('button', { class: 'mini', onclick: () => openMoney(null, date, again, 'income') }, '+ Income'),
+          el('a', { class: 'mini linkbtn', href: '#money' }, 'Month ›'))),
+      list.length ? el('p', { class: 'xtotal small' },
+        out.length ? el('span', {}, 'Spent ', el('b', {}, totalText(out))) : null,
+        inc.length ? el('span', {}, 'Received ', el('b', {}, totalText(inc))) : null)
+        : el('p', { class: 'muted small' }, 'Nothing added for this day.'),
+      list.length ? el('ul', { class: 'xlist' }, list.map(x => moneyRow(x, again))) : null);
+  }
+
+  // ---- the Money tab ----
+  let moneyFilter = 'all';
+  function categoryTable(list, prevList, cur, kind) {
+    const by = {}, prevBy = {}, count = {};
+    for (const x of list) if (x.currency === cur) { by[x.category] = (by[x.category] || 0) + x.amount; count[x.category] = (count[x.category] || 0) + 1; }
+    for (const x of prevList) if (x.currency === cur) prevBy[x.category] = (prevBy[x.category] || 0) + x.amount;
+    const rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
+    if (!rows.length) return null;
+    const total = rows.reduce((a, r) => a + r[1], 0), max = rows[0][1];
+    const hasPrev = Object.keys(prevBy).length > 0;
+    return el('table', { class: 'cattable' + (kind === 'income' ? ' income' : '') },
+      el('thead', {}, el('tr', {}, el('th', {}, 'Category'), el('th', { class: 'barcol' }, ''), el('th', {}, 'Total'), el('th', {}, '%'),
+        hasPrev ? el('th', {}, 'vs last month') : null)),
+      el('tbody', {}, rows.map(([c, v]) => {
+        const pct = Math.round(v / total * 100), prev = prevBy[c] || 0, diff = v - prev;
+        return el('tr', { title: `${c}: ${money(v, cur)} in ${count[c]} item${count[c] === 1 ? '' : 's'}` },
+          el('td', { class: 'catname' }, c, el('small', { class: 'muted' }, ` ${count[c]}×`)),
+          el('td', { class: 'barcol' }, el('span', { class: 'btrack' }, el('span', { class: 'bfill', style: `width:${Math.max(2, v / max * 100)}%` }))),
+          el('td', { class: 'num' }, money(v, cur)),
+          el('td', { class: 'num muted' }, pct + '%'),
+          hasPrev ? el('td', { class: 'num small' + (Math.abs(diff) < 0.005 ? ' muted' : '') },
+            !prev ? 'new' : Math.abs(diff) < 0.005 ? 'same' : (diff > 0 ? '▲ ' : '▼ ') + money(Math.abs(diff), cur)) : null);
+      })),
+      el('tfoot', {}, el('tr', {}, el('td', {}, 'Total'), el('td', { class: 'barcol' }), el('td', { class: 'num' }, money(total, cur)), el('td', {}), hasPrev ? el('td', {}) : null)));
   }
 
   function showMoney(month) {
@@ -4081,65 +4231,66 @@ function send(o) {
     setView('money');
     const d = parse(month + '-01');
     $('#moneyTitle').textContent = d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-    const list = expenses(month), again = () => showMoney(month);
-    $('#moneyCount').textContent = list.length ? `${list.length} expense${list.length === 1 ? '' : 's'}` : '';
-
-    // summary: total, budget, by category
+    const ended = month < today().slice(0, 7);
+    $('#moneySub').textContent = ended ? 'Month summary' : month === today().slice(0, 7) ? 'This month so far' : 'Planned';
+    const list = moneyItems(month), prev = moneyItems(shiftMonth(month, -1)), again = () => showMoney(month);
+    const out = list.filter(x => !isIncome(x)), inc = list.filter(isIncome);
     const cur = Config.get('currency', 'BRL');
-    const t = totals(list), mainTotal = t[cur] || 0;
+    const spent = sumIn(out, cur), got = sumIn(inc, cur), bal = got - spent;
+    const others = [...new Set(list.map(x => x.currency))].filter(c => c !== cur);
     const budget = Config.get('budget', {})[cur] || 0;
-    const prevList = expenses(addDays(month + '-01', -1).slice(0, 7)), prevTotal = totals(prevList)[cur] || 0;
-    const others = Object.keys(t).filter(c => c !== cur);
-    const tile = el('section', { class: 'card xsum' },
-      el('div', { class: 'xhero' },
-        el('span', { class: 'muted small' }, 'Spent this month'),
-        el('strong', {}, money(mainTotal, cur)),
-        others.length ? el('span', { class: 'muted small' }, '+ ' + others.map(c => money(t[c], c)).join(' + ')) : null,
-        prevTotal ? el('span', { class: 'muted small' }, `Last month: ${money(prevTotal, cur)}`) : null),
-      el('div', { class: 'xbudget' },
-        el('label', { class: 'small' }, el('b', {}, `Monthly budget (${cur})`),
-          el('input', { inputmode: 'decimal', placeholder: 'No budget', value: budget ? String(budget) : '',
-            onchange: e => { const v = readAmount(e.target.value); const b = { ...Config.get('budget', {}) }; if (v > 0) b[cur] = v; else delete b[cur]; Config.set('budget', b); again(); } })),
-        budget ? el('div', { class: 'meter' + (mainTotal > budget ? ' over' : ''), role: 'img', 'aria-label': `${Math.round(mainTotal / budget * 100)}% of budget used` },
-          el('span', { style: `width:${Math.min(100, mainTotal / budget * 100)}%` })) : null,
-        budget ? el('span', { class: 'small' + (mainTotal > budget ? ' err-text' : ' muted') },
-          mainTotal > budget ? `${money(mainTotal - budget, cur)} over budget` : `${money(budget - mainTotal, cur)} left`) : null));
 
-    const byCat = {};
-    for (const x of list) if (x.currency === cur) byCat[x.category] = (byCat[x.category] || 0) + x.amount;
-    const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
-    const max = cats.length ? cats[0][1] : 1;
-    const catCard = cats.length ? el('section', { class: 'card' },
-      el('div', { class: 'card-head' }, el('h2', {}, `By category (${cur})`)),
-      el('ul', { class: 'bars' }, cats.map(([c, v]) => el('li', { title: `${c}: ${money(v, cur)} (${Math.round(v / mainTotal * 100)}%)` },
-        el('span', { class: 'blabel' }, c),
-        el('span', { class: 'btrack' }, el('span', { class: 'bfill', style: `width:${Math.max(1.5, v / max * 100)}%` })),
-        el('span', { class: 'bval' }, money(v, cur), el('small', { class: 'muted' }, ` ${Math.round(v / mainTotal * 100)}%`)))))) : null;
-    fill($('#moneySummary'), el('div', { class: 'duo' }, tile, catCard || el('section', { class: 'card' }, el('p', { class: 'muted small' }, 'Your spending by category shows here once you add expenses.'))));
+    const tile = (label, value, sub, cls) => el('div', { class: 'stat ' + (cls || '') }, el('span', { class: 'slabel' }, label), el('strong', {}, value), sub ? el('span', { class: 'ssub' }, sub) : null);
+    const stats = el('div', { class: 'xstats' },
+      tile('Income', money(got, cur), `${inc.length} item${inc.length === 1 ? '' : 's'}`, 'in'),
+      tile('Spent', money(spent, cur), budget ? (spent > budget ? `${money(spent - budget, cur)} over budget` : `${money(budget - spent, cur)} left of ${money(budget, cur)}`) : `${out.length} item${out.length === 1 ? '' : 's'}`, 'out' + (budget && spent > budget ? ' over' : '')),
+      tile(bal >= 0 ? 'Left over' : 'Overspent', money(Math.abs(bal), cur), got ? `${Math.round(Math.max(0, bal) / got * 100)}% of income saved` : 'Add income to see your balance', 'bal' + (bal < 0 ? ' neg' : '')));
+    const budgetRow = el('details', { class: 'xbudget' + (budget ? ' set' : '') },
+      el('summary', {}, budget ? `Monthly budget: ${money(budget, cur)}` : 'Set a monthly budget'),
+      el('label', { class: 'small' }, `Budget for spending (${cur})`,
+        el('input', { inputmode: 'decimal', placeholder: 'No budget', value: budget ? String(budget) : '',
+          onchange: e => { const v = readAmount(e.target.value); const b = { ...Config.get('budget', {}) }; if (v > 0) b[cur] = v; else delete b[cur]; Config.set('budget', b); again(); } })));
+    const meter = budget ? el('div', { class: 'meter' + (spent > budget ? ' over' : ''), role: 'img', 'aria-label': `${Math.round(spent / budget * 100)}% of budget used` },
+      el('span', { style: `width:${Math.min(100, spent / budget * 100)}%` })) : null;
 
-    // list grouped by day
-    const days = [...new Set(list.map(x => x.date))];
-    fill($('#moneyList'), list.length ? days.map(day => {
-      const xs = list.filter(x => x.date === day);
+    const catOut = categoryTable(out, prev.filter(x => !isIncome(x)), cur, 'expense');
+    const catIn = categoryTable(inc, prev.filter(isIncome), cur, 'income');
+    fill($('#moneySummary'),
+      el('section', { class: 'card' }, stats, meter, budgetRow,
+        others.length ? el('p', { class: 'muted small' }, `Also in other currencies: ${others.map(c => `${money(sumIn(inc, c), c)} in, ${money(sumIn(out, c), c)} out`).join(' · ')}.`) : null),
+      el('section', { class: 'card' },
+        el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:var(--money)' }),
+          `Spending by category${ended ? '' : ' so far'}`), el('span', { class: 'muted small' }, monthName(month))),
+        catOut || el('p', { class: 'muted small' }, 'Add expenses and you will see here how much goes to each category.')),
+      catIn ? el('section', { class: 'card' },
+        el('div', { class: 'card-head' }, el('h2', {}, el('span', { class: 'dot', style: 'background:var(--money)' }), 'Income by source')), catIn) : null);
+
+    // everything, grouped by day
+    const shownList = moneyFilter === 'income' ? inc : moneyFilter === 'expense' ? out : list;
+    fill($('#moneyFilter'), [['all', 'All'], ['expense', 'Expenses'], ['income', 'Income']].map(([k, label]) =>
+      el('button', { class: moneyFilter === k ? 'on' : null, onclick: () => { moneyFilter = k; again(); } }, label)));
+    $('#moneyCount').textContent = shownList.length ? `${shownList.length} item${shownList.length === 1 ? '' : 's'}` : '';
+    const days = [...new Set(shownList.map(x => x.date))];
+    fill($('#moneyList'), shownList.length ? days.map(day => {
+      const xs = shownList.filter(x => x.date === day), o = xs.filter(x => !isIncome(x)), n = xs.filter(isIncome);
       return el('div', { class: 'xday' },
-        el('h3', {}, el('a', { href: '#day/' + day }, fmt(day, { weekday: 'long', day: 'numeric', month: 'short' })), el('span', {}, totalText(xs))),
-        el('ul', { class: 'xlist' }, xs.map(x => expenseRow(x, again))));
-    }) : el('p', { class: 'muted small' }, 'No expenses this month yet. Tap + Expense to add one.'));
+        el('h3', {}, el('a', { href: '#day/' + day }, fmt(day, { weekday: 'long', day: 'numeric', month: 'short' })),
+          el('span', {}, [n.length ? '+ ' + totalText(n) : null, o.length ? '− ' + totalText(o) : null].filter(Boolean).join('  '))),
+        el('ul', { class: 'xlist' }, xs.map(x => moneyRow(x, again))));
+    }) : el('p', { class: 'muted small' }, moneyFilter === 'income' ? 'No income this month yet.' : 'Nothing added this month yet. Tap − Expense or + Income.'));
   }
-  $('#addExpenseBtn').addEventListener('click', () => {
-    const m = state.moneyMonth || today().slice(0, 7);
-    openExpense(null, today().startsWith(m) ? today() : m + '-01', () => showMoney(m));
-  });
-  const shiftMonth = (m, n) => { const d = parse(m + '-01'); d.setMonth(d.getMonth() + n); return iso(d).slice(0, 7); };
+  const newMoneyDate = m => today().startsWith(m) ? today() : m + '-01';
+  $('#addExpenseBtn').addEventListener('click', () => { const m = state.moneyMonth || today().slice(0, 7); openMoney(null, newMoneyDate(m), () => showMoney(m), 'expense'); });
+  $('#addIncomeBtn').addEventListener('click', () => { const m = state.moneyMonth || today().slice(0, 7); openMoney(null, newMoneyDate(m), () => showMoney(m), 'income'); });
   $('#prevMonthX').addEventListener('click', () => go('money/' + shiftMonth(state.moneyMonth, -1)));
   $('#nextMonthX').addEventListener('click', () => go('money/' + shiftMonth(state.moneyMonth, 1)));
   $('#csvBtn').addEventListener('click', async () => {
-    const m = state.moneyMonth, list = expenses(m).reverse();
-    if (!list.length) { toast('No expenses this month.'); return; }
+    const m = state.moneyMonth, list = moneyItems(m).reverse();
+    if (!list.length) { toast('Nothing this month.'); return; }
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const csv = [['Date', 'Description', 'Category', 'Paid with', 'Amount', 'Currency', 'Note'].map(q).join(',')]
-      .concat(list.map(x => [x.date, x.desc, x.category, x.method, x.amount.toFixed(2), x.currency, x.note].map(q).join(','))).join('\n');
-    const filename = `expenses-${m}.csv`;
+    const csv = [['Date', 'Type', 'Description', 'Category', 'Method', 'Amount', 'Currency', 'Note'].map(q).join(',')]
+      .concat(list.map(x => [x.date, isIncome(x) ? 'Income' : 'Expense', x.desc, x.category, x.method, (isIncome(x) ? x.amount : -x.amount).toFixed(2), x.currency, x.note].map(q).join(','))).join('\n');
+    const filename = `money-${m}.csv`;
     if (EMBED) {
       const dl = await window.claude.use('downloads').catch(() => null);
       if (!dl) { toast('Downloading isn\'t available here.', 4000); return; }

@@ -101,18 +101,25 @@
 
     <!-- MONEY -->
     <section id="view-money" class="view">
-      <div class="dayhead">
-        <button class="round" id="prevMonthX" aria-label="Previous month">‹</button>
-        <div class="daytitle"><h1 id="moneyTitle">Money</h1><p class="muted">Your expenses this month</p></div>
-        <button class="round" id="nextMonthX" aria-label="Next month">›</button>
-        <div class="dayjump">
-          <button class="mini" id="csvBtn">⤓ CSV</button>
-          <button class="mini primary" id="addExpenseBtn">+ Expense</button>
+      <div class="moneyhead">
+        <div class="monthnav">
+          <button class="round" id="prevMonthX" aria-label="Previous month">‹</button>
+          <div class="daytitle"><h1 id="moneyTitle">Money</h1><p id="moneySub" class="muted"></p></div>
+          <button class="round" id="nextMonthX" aria-label="Next month">›</button>
+        </div>
+        <div class="moneyactions">
+          <button class="mini primary" id="addExpenseBtn">− Expense</button>
+          <button class="mini primary in" id="addIncomeBtn">+ Income</button>
+          <button class="mini" id="csvBtn" title="Download this month as a spreadsheet">⤓ CSV</button>
         </div>
       </div>
       <div id="moneySummary"></div>
       <section class="card">
-        <div class="card-head"><h2><span class="dot" style="background:var(--money)"></span>Expenses</h2><span id="moneyCount" class="muted small"></span></div>
+        <div class="card-head">
+          <h2>Everything this month</h2>
+          <div class="seg" id="moneyFilter"></div>
+        </div>
+        <p id="moneyCount" class="muted small"></p>
         <div id="moneyList"></div>
       </section>
     </section>
@@ -410,22 +417,27 @@
     </form>
   </dialog>
 
-  <!-- EXPENSE -->
+  <!-- EXPENSE / INCOME -->
   <dialog id="expenseDlg">
     <form method="dialog" class="dlg" id="expenseForm" autocomplete="off">
       <h2 id="exDlgTitle">New expense</h2>
+      <div class="seg big" role="group" aria-label="Type">
+        <button type="button" id="exTypeOut" class="on">− Expense</button>
+        <button type="button" id="exTypeIn">+ Income</button>
+      </div>
       <div class="evrow">
-        <label class="small grow"><b>Amount</b><input id="exAmount" inputmode="decimal" placeholder="0,00" /></label>
+        <label class="small"><b>Amount</b><input id="exAmount" inputmode="decimal" placeholder="0,00" /></label>
         <label class="small"><b>Currency</b><select id="exCurrency"></select></label>
       </div>
-      <label class="small"><b>What was it?</b><input id="exDesc" placeholder="e.g. Lunch, Uber, books" /></label>
+      <label class="small" id="exDescLabel"><b>What was it?</b><input id="exDesc" /></label>
       <div class="evrow">
-        <label class="small grow"><b>Category</b><select id="exCategory"></select></label>
-        <label class="small grow"><b>Paid with</b><select id="exMethod"></select></label>
+        <label class="small"><b>Category</b><select id="exCategory"></select></label>
+        <label class="small" id="exMethodLabel"><b>Paid with</b><select id="exMethod"></select></label>
       </div>
+      <label class="small" id="exNewCatLabel" hidden><b>New category name</b><input id="exNewCat" placeholder="e.g. Kids, Pets, Car" /></label>
       <label class="small"><b>Date</b><input type="date" id="exDate" /></label>
       <label class="small"><b>Note (optional)</b><input id="exNote" /></label>
-      <p id="exMsg" class="small" role="status"></p>
+      <p id="exMsg" class="small err-text" role="status"></p>
       <div class="dlg-actions">
         <button type="button" class="mini danger" id="exDelete">Delete</button>
         <span style="flex:1"></span>

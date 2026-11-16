@@ -24,6 +24,10 @@ seed = ""
 if seed_file.exists():
     seed_json = seed_file.read_text().replace("</", "<\\/")
     seed = f'<script type="application/json" id="studySeed">{seed_json}</script>\n'
+# Which calendars to show the first time (also private).
+cal_file = root / "private" / "calendars.json"
+if cal_file.exists():
+    seed += f'<script type="application/json" id="calSeed">{cal_file.read_text().strip().replace("</", "<\\/")}</script>\n'
 out = f"""<title>Pen Planner</title>
 <style>
 {css}
