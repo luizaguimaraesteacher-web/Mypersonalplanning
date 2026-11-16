@@ -668,6 +668,22 @@ body.view-money #toolbar { display: none; }
 .bars li:hover .bfill { filter: brightness(.88); }
 .bval { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* compact calendar card */
+.allday-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 8px; border-bottom: 1px solid var(--line); }
+.allday-row .when { width: 92px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.adchip { border: 0; border-left: 4px solid var(--ec, var(--accent)); background: var(--soft); border-radius: 6px; padding: 3px 8px; font: inherit; font-size: 13px; color: var(--ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.adchip { cursor: pointer; }
+.events.timed > li { padding: 6px 0; }
+.events.timed .when { width: 70px; display: flex; flex-direction: column; line-height: 1.2; }
+.events.timed .when small { font-weight: 400; font-size: 11px; }
+.events.timed .evnotes { padding-left: 88px; }
+.evmore { margin-top: 6px; }
+@media (min-width: 760px) {
+  .events.timed { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
+  .events.timed > li:last-child { border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 620px) { .events.timed .evnotes { padding-left: 18px; } .allday-row .when { width: auto; } }
+
 </style>
 <header class="top">
     <a class="brand" href="#day">✎ Pen Planner</a>
@@ -730,10 +746,9 @@ body.view-money #toolbar { display: none; }
         <p class="muted small">Write on the empty line to add a task, and anything about it in the notes space next to it (✎ shows it on a narrow screen). Tap the circle when it's done.</p>
       </section>
 
-      <div class="duo">
-        <section class="card" id="calCard"></section>
-        <section class="card" id="moneyCard"></section>
-      </div>
+      <section class="card" id="calCard"></section>
+
+      <section class="card" id="moneyCard"></section>
 
       <section class="card" id="classCard"></section>
 
@@ -2546,26 +2561,52 @@ function send(o) {
     });
   }
 
+  const EVENTS_SHOWN = 6;
   function drawEvents(body, events) {
     if (!events.length) { fill(body, el('p', { class: 'muted small' }, 'Nothing on your calendar this day.')); return; }
     const now = Date.now();
-    fill(body, el('ul', { class: 'events' }, events.map(ev => {
-      const color = /^#[0-9a-f]{3,8}$/i.test(ev.color || '') ? ev.color : null;
-      const canEdit = EMBED && ev.id;
-      const rec = !ev.allDay ? Store.items.get(classKey(ev)) : null;
+    const okColor = c => /^#[0-9a-f]{3,8}$/i.test(c || '') ? c : null;
+    // all-day events: one row of small labels
+    const allDay = events.filter(ev => ev.allDay), timed = events.filter(ev => !ev.allDay);
+    const dayRow = allDay.length ? el('div', { class: 'allday-row' }, el('span', { class: 'when' }, 'All day'),
+      allDay.map(ev => {
+        const style = okColor(ev.color) ? `--ec:${ev.color}` : null, label = ev.busy ? 'Busy' : ev.title || '(No title)';
+        return EMBED && ev.id && !ev.busy
+          ? el('button', { class: 'adchip', style, title: 'Edit this event', onclick: () => openEventEditor(ev) }, label)
+          : el('span', { class: 'adchip', style }, label);
+      })) : null;
+    // timed events: the next few, the rest behind a button
+    const past = timed.filter(ev => ev.end && ev.end < now), rest = timed.filter(ev => !(ev.end && ev.end < now));
+    const shown = new Set(rest.slice(0, past.length && !rest.length ? 0 : EVENTS_SHOWN));
+    if (!rest.length) past.slice(-EVENTS_SHOWN).forEach(ev => shown.add(ev));
+    const items = timed.map(ev => {
+      const color = okColor(ev.color);
+      const rec = Store.items.get(classKey(ev));
       const what = [el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
-        el('span', {}, [ev.allDay || !ev.end ? null : `until ${timeOf(ev.end)}`, ev.location || null].filter(Boolean).join(' · '))];
-      return el('li', { class: (!ev.allDay && ev.end && ev.end < now ? 'past' : '') + (canEdit ? ' editable' : '') },
+        ev.location ? el('span', {}, ev.location) : null];
+      return el('li', { class: (ev.end && ev.end < now ? 'past' : '') + (shown.has(ev) ? '' : ' more'), hidden: shown.has(ev) ? null : true },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
-        el('span', { class: 'when' }, ev.allDay ? 'All day' : timeOf(ev.start)),
+        el('span', { class: 'when' }, timeOf(ev.start), ev.end && ev.end > ev.start ? el('small', {}, timeOf(ev.end)) : null),
         ev.busy ? el('span', { class: 'what', title: 'This calendar only shares when you are busy' }, what)
-          : !ev.allDay ? el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what)
-          : canEdit ? el('button', { class: 'what', title: 'Edit this event', onclick: () => openEventEditor(ev) }, what) : el('span', { class: 'what' }, what),
-        ev.allDay || ev.busy ? null : el('button', { class: 'recbtn' + (rec && (rec.status || hasNotes(rec)) ? ' done' : ''), title: 'Open this event', onclick: () => openClassFor(ev) },
+          : el('button', { class: 'what', title: 'Open this event', onclick: () => openClassFor(ev) }, what),
+        ev.busy ? null : el('button', { class: 'recbtn' + (rec && (rec.status || hasNotes(rec)) ? ' done' : ''), title: 'Open this event', onclick: () => openClassFor(ev) },
           rec && rec.status ? statusLabel(rec.status) : rec && hasNotes(rec) ? 'Notes ✓' : 'Open ›'),
-        ev.allDay || ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
+        ev.busy ? null : el('div', { class: 'evnotes', 'data-start': String(ev.start), 'data-title': ev.title || '' },
           rec ? classSummary(rec) : null));
-    })));
+    });
+    const hiddenCount = timed.length - shown.size;
+    const earlier = past.filter(ev => !shown.has(ev)).length, later = hiddenCount - earlier;
+    const list = timed.length ? el('ul', { class: 'events timed' }, items) : null;
+    const moreBtn = hiddenCount ? el('button', {
+      class: 'mini evmore', onclick: e => {
+        const open = e.currentTarget.classList.toggle('open');
+        list.querySelectorAll('li.more').forEach(li => { li.hidden = !open; });
+        e.currentTarget.textContent = open ? 'Show less' : moreText;
+      },
+    }) : null;
+    const moreText = [earlier ? `${earlier} earlier` : null, later ? `${later} more` : null].filter(Boolean).join(' · ') + ' ▾';
+    if (moreBtn) moreBtn.textContent = moreText;
+    fill(body, dayRow, list, moreBtn);
   }
 
   async function renderCalendar(force) {

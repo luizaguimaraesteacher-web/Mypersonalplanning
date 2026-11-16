@@ -12,6 +12,7 @@ There are two ways to open it:
 - **Tasks**: write on the empty line ("Write a new task…") and a new empty line appears underneath. Tap the circle to mark a task done. **→** moves it to tomorrow, **×** deletes it.
 - **Notes next to each task**: every task has its own handwriting space beside it (under it on a narrow screen, where **✎** opens it). The note moves with the task and is deleted with it.
 - **Routines beside your tasks**: the morning and night routines sit side by side right above the task list.
+- **Compact calendar card**: all-day events sit in one row, the day's timed events show in two columns on iPad, and only the next six show; **earlier / more ▾** opens the rest. The day's Money card comes right after it.
 - **Money**: the *Money* tab lists the month's expenses by day, with the total, a monthly budget bar, spending by category and **⤓ CSV**. **+ Expense** (there, or on each day's Money card) asks for the amount, what it was, category, how you paid and the date; tap an expense to change or delete it.
 - **Calendars that only show "Busy"**: a calendar shared as *free/busy only* is marked "busy only", and its events show as *Busy*. **+ Calendars → Only seeing "Busy"?** explains how to switch the sharing to *See all event details*.
 - **Unfinished tasks follow you**: on today's page, anything not done from earlier days shows under "Still to do from earlier days". Tick it off there, or tap **Move to today**.
