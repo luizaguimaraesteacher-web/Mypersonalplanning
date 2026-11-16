@@ -1322,6 +1322,11 @@ function send(o) {
       Config.set('hideWords', [...new Set([...Config.get('hideWords', []), ...seed.hide.map(String)])]);
       Config.set('hideSeeded', true);
     }
+    if (seed && Array.isArray(seed.classes) && !Config.get('classSeeded', false) && cals.length) {
+      const words = seed.classes.map(x => String(x).toLowerCase());
+      Config.set('classCals', cals.filter(c => words.some(w => (c.name + ' ' + c.id).toLowerCase().includes(w))).map(c => c.id));
+      Config.set('classSeeded', true);
+    }
     if (!seed || !Array.isArray(seed.show) || Config.get('calSeeded', 0) >= (seed.version || 1)) return;
     const want = seed.show.map(x => String(x).toLowerCase());
     const match = c => want.some(w => (c.name + ' ' + c.id).toLowerCase().includes(w));
@@ -1365,12 +1370,17 @@ function send(o) {
   }
   // Events whose name contains one of these words are left out (e.g. classes of another teacher).
   const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  // Calendars whose events are classes (student, homework, last class). Not set yet = every calendar, as before.
+  const isClassCal = id => { const l = Config.get('classCals', null); return !Array.isArray(l) || l.includes(id || ''); };
+  // Events removed from the planner only (calendars the planner can't change)
+  const removedIds = () => new Set(Config.get('removedEvents', []).map(x => x.id));
   const hideWords = () => Config.get('hideWords', []).map(fold).filter(Boolean);
   // Hidden calendars are left out, and the same event on two calendars (same name and time) shows once.
   const visibleEvents = events => {
-    const h = hiddenCals(), seen = new Set(), out = [], words = hideWords();
+    const h = hiddenCals(), seen = new Set(), out = [], words = hideWords(), gone = removedIds();
     for (const e of events) {
       if (h.has(e.calId)) continue;
+      if (e.id && gone.has(e.id)) continue;
       if (words.length && e.title) { const t = fold(e.title); if (words.some(w => t.includes(w))) continue; }
       const key = (e.title || '').trim().toLowerCase() + '|' + e.start + '|' + e.end;
       if (e.title && seen.has(key)) continue;
@@ -1415,7 +1425,23 @@ function send(o) {
       el('label', { class: 'inline-check' },
         el('input', { type: 'checkbox', checked: h.has(c.id) ? null : true, onchange: e => { setCalHidden(c.id, !e.target.checked); if (calsChanged) calsChanged(); } }),
         el('span', { class: 'sw' }), el('span', {}, c.label, c.added ? el('small', { class: 'muted' }, ' · added by you') : null, c.busyOnly ? el('small', { class: 'busytag' }, ' · shares only busy times') : null)),
+      el('button', { type: 'button', class: 'mini kindbtn' + (isClassCal(c.id) ? ' on' : ''), title: 'Are this calendar\'s events classes (students, homework) or other events?',
+        onclick: () => {
+          const l = new Set(Array.isArray(Config.get('classCals', null)) ? Config.get('classCals') : cals.map(x => x.id));
+          if (l.has(c.id)) l.delete(c.id); else l.add(c.id);
+          Config.set('classCals', [...l]);
+          drawCalendarList();
+          if (calsChanged) calsChanged();
+        } }, isClassCal(c.id) ? '🎓 Classes' : '📅 Events'),
       c.added ? el('button', { class: 'mini', onclick: () => removeExtraCal(c.id) }, 'Remove') : null)));
+    drawRemoved();
+  }
+  function drawRemoved() {
+    const list = Config.get('removedEvents', []);
+    $('#removedBox').hidden = !list.length;
+    fill($('#removedList'), list.slice().reverse().map(x => el('li', {},
+      el('span', {}, (x.title || 'Event') + (x.start ? ' · ' + fmt(iso(new Date(x.start)), { month: 'short', day: 'numeric' }) : '')),
+      el('button', { type: 'button', class: 'mini', onclick: () => { Config.set('removedEvents', Config.get('removedEvents', []).filter(y => y.id !== x.id)); drawRemoved(); if (calsChanged) calsChanged(); } }, 'Show again'))));
   }
   function drawHideWords() {
     fill($('#hideList'), Config.get('hideWords', []).map(w => el('li', {},
@@ -1565,6 +1591,15 @@ function send(o) {
     deleteEventFlow(ev, true);
   });
   async function deleteEventFlow(ev, reopen) {
+    const cal = (Cals.list || []).find(c => c.id === ev.calId);
+    if (cal && (cal.role === 'reader' || cal.role === 'freeBusyReader')) {
+      if (!(await ask(`"${cal.label}" can't be changed from the planner, so "${ev.title || 'this event'}" will only be removed from the planner. It stays in Google Calendar. (You can bring it back in + Calendars.)`, 'Remove from planner'))) { if (reopen) $('#eventDlg').showModal(); return; }
+      Config.set('removedEvents', Config.get('removedEvents', []).filter(x => x.id !== ev.id).concat([{ id: ev.id, title: ev.title || '', start: ev.start }]).slice(-300));
+      toast('Removed from the planner.');
+      if (recClass && recClass.eventId === ev.id && document.body.classList.contains('view-class')) go('day/' + recClass.date);
+      else afterEventChange(iso(new Date(ev.start)));
+      return;
+    }
     if (!(await ask(`Delete "${ev.title || 'this event'}" from Google Calendar?`, 'Delete'))) { if (reopen) $('#eventDlg').showModal(); return; }
     try {
       await calCall('delete_event', { eventId: ev.id, ...(ev.calId ? { calendarId: ev.calId } : {}) });
@@ -1627,7 +1662,8 @@ function send(o) {
   // The notes kept for a class, shown inside its calendar event
   function classSummary(rec) {
     const line = (label, text) => text && text.trim() ? el('p', { class: 'evline' }, el('b', {}, label + ': '), text.trim().length > 220 ? text.trim().slice(0, 220) + '…' : text.trim()) : null;
-    const parts = [line('Covered', rec.covered), line('Homework', rec.homework), line('Notes', rec.notes)].filter(Boolean);
+    const cls = rec.eventId ? isClassCal(rec.calId) : !!rec.isClass;
+    const parts = [line(cls ? 'Covered' : 'Key points', rec.covered), line(cls ? 'Homework' : 'Next steps', rec.homework), line('Notes', rec.notes)].filter(Boolean);
     if (!parts.length && rec.transcript && rec.transcript.trim()) parts.push(el('p', { class: 'evline muted' }, 'Recording saved.'));
     if (rec.gMoved && rec.gMovedTo) parts.unshift(el('p', { class: 'evline muted' }, 'Moved to ' + dayTime(rec.gMovedTo)));
     return parts.length ? el('div', { class: 'evrec' }, parts) : null;
@@ -1719,7 +1755,7 @@ function send(o) {
         toast(c.status ? 'Marked as done.' : 'Not done.');
         renderCalendar();
       }),
-      act('del', '🗑 Delete', 'Delete from Google Calendar', () => deleteEventFlow(ev, false), ro));
+      act('del', ro ? '🗑 Remove' : '🗑 Delete', ro ? 'Remove from the planner (it stays in Google Calendar)' : 'Delete from Google Calendar', () => deleteEventFlow(ev, false)));
   }
 
   // Why Move / All-day / Delete can't change this calendar, and how to fix it
@@ -1793,7 +1829,7 @@ function send(o) {
       const what = [
         el('span', { class: 'evtitle' },
           el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
-          rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status)) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
+          rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status, !isClassCal(ev.calId))) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
         sub ? el('span', { class: 'evsub' }, sub) : null];
       const isPast = ev.end && ev.end < now;
       const li = el('li', { class: 'swipe ' + (isPast ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : isPast ? ' earlier' : ' more'), hidden: shown.has(ev) ? null : true });
@@ -1986,7 +2022,7 @@ function send(o) {
   const classes = () => Store.list('class');
   const classKey = ev => 'cls-' + String(ev.id || ('t' + ev.start)).replace(/[^A-Za-z0-9_.~:@+-]/g, '-').slice(0, 150);
   const STATUSES = [['happened', 'Happened'], ['noshow', 'Student missed'], ['cancelled', 'Cancelled'], ['moved', 'Rescheduled']];
-  const statusLabel = s => (STATUSES.find(x => x[0] === s) || [, ''])[1];
+  const statusLabel = (s, event) => event && s === 'happened' ? 'Done' : (STATUSES.find(x => x[0] === s) || [, ''])[1];
 
   const hasNotes = c => !!(c && ((c.covered || c.homework || c.notes || c.transcript || '').trim() || (c.granola && c.granola.url)));
   function openClassFor(ev) { go('class/' + recFor(ev).id); }
@@ -2200,7 +2236,19 @@ function send(o) {
       f.value = c[key] || '';
       f.oninput = () => { c[key] = f.value; Store.save(c); if (after) after(); };
     };
-    bind('#classTitle', 'title', () => renderLastClass(c));
+    // A class (student, homework, last class) or another event (work meeting: key points, next steps)
+    const cls = c.eventId ? isClassCal(c.calId) : !!c.isClass;
+    document.body.classList.toggle('event-page', !cls);
+    $('#classTitle').placeholder = cls ? 'Class or student' : 'Event';
+    $('#classStatusH').textContent = cls ? 'How did it go?' : 'Status';
+    $('#classCoveredH').textContent = cls ? 'What we covered' : 'Key points';
+    $('#classCovered').placeholder = cls ? 'Topics, vocabulary, pages…' : 'What was discussed or decided';
+    $('#classHomeworkH').textContent = cls ? 'Homework' : 'Next steps';
+    $('#classHomework').placeholder = cls ? 'What the student should do before next class' : 'What I need to do after this (and by when)';
+    document.querySelector('#view-class .lastcard').hidden = !cls;
+    const what = cls ? 'class' : 'meeting';
+    $('#granolaHint').textContent = `Record the ${what} in the Granola app. Its notes show up here (tap ↻ afterwards if they don't yet).`;
+    bind('#classTitle', 'title', () => { if (cls) renderLastClass(c); });
     bind('#classTranscript', 'transcript', drawGranolaSend);
     bind('#classCovered', 'covered');
     bind('#classHomework', 'homework');
@@ -2222,15 +2270,15 @@ function send(o) {
     $('#classTime').onchange = moveTime;
     $('#classWhen').textContent = c.eventId ? 'From your calendar' : '';
     fill($('#classStatus'), STATUSES.map(([k, label]) => el('button', {
-      class: 'st st-' + k + (c.status === k ? ' on' : ''), 'aria-pressed': String(c.status === k),
+      class: 'st st-' + k + (c.status === k ? ' on' : ''), 'aria-pressed': String(c.status === k), hidden: !cls && k === 'noshow' ? true : null,
       onclick: () => {
         c.status = c.status === k ? '' : k;
         if (c.status === 'moved' && !c.newStart) { showClassStatus(c); Store.save(c); $('#moveDay').focus(); syncClassToGoogle(c); return; }
         Store.save(c); showClassStatus(c); syncClassToGoogle(c);
       },
-    }, label)));
+    }, !cls && k === 'happened' ? 'Done' : label)));
     $('#classDelete').onclick = async () => {
-      if (!(await ask('Delete this class record? Anything you recorded or wrote here is removed (Granola keeps its own copy).', 'Delete'))) return;
+      if (!(await ask(`Delete these ${cls ? 'class' : 'event'} notes? What you wrote here is removed (Google Calendar and Granola keep their own copies).`, 'Delete'))) return;
       if (Dict && Dict.active()) Dict.stop().catch(() => {});
       Store.remove(c.id);
       go('day/' + c.date);
@@ -2256,7 +2304,7 @@ function send(o) {
     drawRecState(Dict && Dict.active() ? 'listening' : 'idle');
     drawGranolaSend();
     findGranolaFor(c);
-    renderLastClass(c);
+    if (cls) renderLastClass(c);
     scrollTo(0, 0);
   }
   function renderEventInfo(c) {
@@ -2286,8 +2334,9 @@ function send(o) {
   // Writes the class notes into the Google event's description (keeps what was there, replaces an older copy)
   async function saveNotesToGoogle(c) {
     const msg = $('#evinfoMsg');
-    const lines = [['What we covered', c.covered], ['Homework', c.homework], ['Notes', c.notes]].filter(([, v]) => v && v.trim());
-    if (c.status) lines.unshift(['Status', statusLabel(c.status)]);
+    const cls = c.eventId ? isClassCal(c.calId) : !!c.isClass;
+    const lines = [[cls ? 'What we covered' : 'Key points', c.covered], [cls ? 'Homework' : 'Next steps', c.homework], ['Notes', c.notes]].filter(([, v]) => v && v.trim());
+    if (c.status) lines.unshift(['Status', statusLabel(c.status, !cls)]);
     if (c.granola && c.granola.url) lines.push(['Granola', c.granola.url]);
     if (!lines.length) { msg.textContent = 'Write what you covered, the homework or a note first.'; return; }
     const base = (c.gDescription || '').replace(/\n*— Class notes \(Pen Planner\) —[\s\S]*$/, '').trim();
@@ -2384,13 +2433,13 @@ function send(o) {
   async function findGranolaFor(c, force) {
     const box = $('#granolaMatch');
     if (!EMBED) { fill(box, el('p', { class: 'muted small' }, 'Granola notes show up when you open the planner inside Claude.')); return; }
-    fill(box, el('p', { class: 'muted small' }, 'Looking for this class in Granola…'));
+    fill(box, el('p', { class: 'muted small' }, 'Looking in Granola…'));
     try {
       const list = await granolaDay(c.date, force);
       if (recClass !== c) return;
       const title = (c.title || '').toLowerCase();
       const near = list.filter(m => !m.upcoming && (Math.abs(m.at - c.start) < 45 * 60e3 || (title && m.title.toLowerCase().includes(title))));
-      if (!near.length) { fill(box, el('p', { class: 'muted small' }, list.length ? 'No Granola note matches this class yet.' : 'No Granola notes this day yet.')); return; }
+      if (!near.length) { fill(box, el('p', { class: 'muted small' }, list.length ? 'No Granola note matches this yet.' : 'No Granola notes this day yet.')); return; }
       fill(box, el('ul', { class: 'glist' }, near.map(m => granolaItem(m))));
     } catch (err) {
       if (recClass !== c) return;

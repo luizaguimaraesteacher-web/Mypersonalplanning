@@ -814,3 +814,6 @@ button.adchip { cursor: pointer; }
 .hidelist li span { font-weight: 600; }
 #hideAdd { flex: none; margin-bottom: 2px; }
 .evearlier { margin: 2px 0 4px; font-size: 12px; color: var(--muted); }
+.kindbtn { flex: none; font-size: 12px; padding: 3px 10px; }
+.kindbtn.on { background: #fdf3e1; border-color: #ead3a6; }
+.calslist li { gap: 8px; }

@@ -171,7 +171,7 @@
       <section class="card evinfo" id="classEventInfo"></section>
 
       <section class="card">
-        <h2>How did it go?</h2>
+        <h2 id="classStatusH">How did it go?</h2>
         <div id="classStatus" class="statusrow"></div>
         <div id="moveBox" class="movebox" hidden>
           <label class="small"><b>New day</b><input type="date" id="moveDay" /></label>
@@ -197,14 +197,14 @@
       </section>
 
       <div class="duo">
-        <section class="card"><h2>What we covered</h2><textarea id="classCovered" rows="5" placeholder="Topics, vocabulary, pages…"></textarea></section>
-        <section class="card"><h2>Homework</h2><textarea id="classHomework" rows="5" placeholder="What the student should do before next class"></textarea></section>
+        <section class="card"><h2 id="classCoveredH">What we covered</h2><textarea id="classCovered" rows="5" placeholder="Topics, vocabulary, pages…"></textarea></section>
+        <section class="card"><h2 id="classHomeworkH">Homework</h2><textarea id="classHomework" rows="5" placeholder="What the student should do before next class"></textarea></section>
       </div>
       <section class="card"><h2>Notes</h2><textarea id="classNotes" rows="4" placeholder="Anything else to remember"></textarea></section>
 
       <section class="card">
         <div class="card-head"><h2>🎙 Granola recording</h2><button class="icon-btn sm" id="granolaLook" title="Look again" aria-label="Look for this class in Granola again">↻</button></div>
-        <p class="small muted">Record the class in the Granola app. Its notes show up here (tap ↻ after the class if they don't yet).</p>
+        <p class="small muted" id="granolaHint">Record the class in the Granola app. Its notes show up here (tap ↻ after the class if they don't yet).</p>
         <div id="granolaMatch"></div>
         <p class="small"><span id="granolaSent"></span></p>
         <p id="granolaMsg" class="small muted"></p>
@@ -438,6 +438,11 @@
         </ol>
       </details>
       <ul id="calsList" class="calslist"></ul>
+      <div id="removedBox" hidden>
+        <h3 class="subhead">Removed from the planner</h3>
+        <p class="small muted">Events you removed from a calendar the planner can't change. They're still in Google Calendar.</p>
+        <ul id="removedList" class="calslist hidelist"></ul>
+      </div>
       <h3 class="subhead">Hide events</h3>
       <p class="small muted">Events whose name has any of these words don't show in the planner (they stay in Google Calendar).</p>
       <ul id="hideList" class="calslist hidelist"></ul>
