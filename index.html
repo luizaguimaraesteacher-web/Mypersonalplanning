@@ -355,6 +355,28 @@
     </form>
   </dialog>
 
+  <!-- CALENDARS -->
+  <dialog id="calsDlg">
+    <form method="dialog" class="dlg" autocomplete="off">
+      <h2>Your calendars</h2>
+      <p class="small muted">Tick the calendars to show in the planner.</p>
+      <ul id="calsList" class="calslist"></ul>
+      <h3 class="subhead">Add another calendar</h3>
+      <ol class="setup small">
+        <li>Open Google Calendar on a computer, signed in to the account that has the calendar (for example your personal Gmail).</li>
+        <li>Next to the calendar, choose <b>Settings and sharing</b> → <b>Share with specific people</b> → <b>Add people</b>, add the Google account connected to Claude, and give it <b>See all event details</b> (or <b>Make changes</b> to edit from the planner).</li>
+        <li>Copy the <b>Calendar ID</b> from <b>Integrate calendar</b> (for your main calendar it's just your email address) and paste it here.</li>
+      </ol>
+      <label class="small"><b>Calendar address or ID</b><input id="acId" placeholder="name@gmail.com" inputmode="email" /></label>
+      <label class="small"><b>Name in the planner (optional)</b><input id="acName" placeholder="e.g. Personal" /></label>
+      <p id="acMsg" class="small" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="acClose">Done</button>
+        <button type="button" class="mini primary" id="acAdd">Add calendar</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- MOVE A TASK -->
   <dialog id="moveDlg">
     <form method="dialog" class="dlg">

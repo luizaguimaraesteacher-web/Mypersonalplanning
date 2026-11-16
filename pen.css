@@ -588,3 +588,9 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
 .gratpage { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin-top: 6px; }
 #gratCard p { margin: 0; }
 .mphoto { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
+.calslist { list-style: none; margin: 0; padding: 0; }
+.calslist li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.calslist li:last-child { border-bottom: 0; }
+.calslist .sw { width: 14px; height: 14px; border-radius: 4px; background: var(--ec); flex: none; }
+.calslist label { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; font-size: 15px; }
+.calslist input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }

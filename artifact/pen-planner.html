@@ -590,6 +590,12 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
 .gratpage { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin-top: 6px; }
 #gratCard p { margin: 0; }
 .mphoto { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
+.calslist { list-style: none; margin: 0; padding: 0; }
+.calslist li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.calslist li:last-child { border-bottom: 0; }
+.calslist .sw { width: 14px; height: 14px; border-radius: 4px; background: var(--ec); flex: none; }
+.calslist label { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; font-size: 15px; }
+.calslist input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
 
 </style>
 <header class="top">
@@ -927,6 +933,28 @@ button.ptitle:hover span:first-child { text-decoration: underline; }
       <div class="dlg-actions">
         <button type="button" class="mini" id="addItemCancel">Cancel</button>
         <button type="button" class="mini primary" id="addItemGo">Add</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- CALENDARS -->
+  <dialog id="calsDlg">
+    <form method="dialog" class="dlg" autocomplete="off">
+      <h2>Your calendars</h2>
+      <p class="small muted">Tick the calendars to show in the planner.</p>
+      <ul id="calsList" class="calslist"></ul>
+      <h3 class="subhead">Add another calendar</h3>
+      <ol class="setup small">
+        <li>Open Google Calendar on a computer, signed in to the account that has the calendar (for example your personal Gmail).</li>
+        <li>Next to the calendar, choose <b>Settings and sharing</b> → <b>Share with specific people</b> → <b>Add people</b>, add the Google account connected to Claude, and give it <b>See all event details</b> (or <b>Make changes</b> to edit from the planner).</li>
+        <li>Copy the <b>Calendar ID</b> from <b>Integrate calendar</b> (for your main calendar it's just your email address) and paste it here.</li>
+      </ol>
+      <label class="small"><b>Calendar address or ID</b><input id="acId" placeholder="name@gmail.com" inputmode="email" /></label>
+      <label class="small"><b>Name in the planner (optional)</b><input id="acName" placeholder="e.g. Personal" /></label>
+      <p id="acMsg" class="small" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="mini" id="acClose">Done</button>
+        <button type="button" class="mini primary" id="acAdd">Add calendar</button>
       </div>
     </form>
   </dialog>
@@ -2049,6 +2077,8 @@ function send(o) {
       return [{ id: '', name: 'My calendar', label: 'My calendar', color: CAL_COLORS[0], writable: true }];
     }
     const cals = out.filter(c => c && typeof c.id === 'string').map(c => ({ id: c.id, name: String(c.summary || c.id) }));
+    // calendars added by their address (shared with this Google account but not in its list)
+    for (const x of Config.get('extraCals', [])) if (x && x.id && !cals.some(c => c.id === x.id)) cals.push({ id: x.id, name: x.name || x.id, added: true });
     cals.sort((a, b) => isHolidayCal(a.id) - isHolidayCal(b.id)); // your own calendars first, holidays last
     cals.forEach((c, i) => {
       c.color = CAL_COLORS[i % CAL_COLORS.length];
@@ -2090,16 +2120,65 @@ function send(o) {
   async function renderCalChips(box, onChange) {
     let cals;
     try { cals = await calendarList(); } catch { fill(box); return; }
-    if (cals.length < 2) { fill(box); return; }
     const h = hiddenCals();
+    const manage = EMBED ? el('button', { class: 'calchip all', title: 'Add or remove calendars', onclick: () => openCalendars(onChange) }, '+ Calendars') : null;
+    if (cals.length < 2) { fill(box, manage); return; }
     fill(box,
       cals.map(c => el('button', {
         class: 'calchip' + (h.has(c.id) ? '' : ' on'), style: `--ec:${c.color}`, 'aria-pressed': String(!h.has(c.id)),
         title: (h.has(c.id) ? 'Show ' : 'Hide ') + c.label,
         onclick: () => { setCalHidden(c.id, !hiddenCals().has(c.id)); onChange(); },
       }, el('span', { class: 'sw' }), c.label)),
-      h.size ? el('button', { class: 'calchip all', onclick: () => { Config.set('hiddenCals', []); onChange(); } }, 'Show all') : null);
+      h.size ? el('button', { class: 'calchip all', onclick: () => { Config.set('hiddenCals', []); onChange(); } }, 'Show all') : null,
+      manage);
   }
+
+  // ---- add calendars by their address ----
+  let calsChanged = null;
+  async function openCalendars(onChange) {
+    calsChanged = onChange;
+    $('#acId').value = ''; $('#acName').value = ''; $('#acMsg').textContent = '';
+    await drawCalendarList();
+    $('#calsDlg').showModal();
+  }
+  async function drawCalendarList() {
+    let cals = [];
+    try { cals = await calendarList(); } catch { /* shown as empty */ }
+    const h = hiddenCals();
+    fill($('#calsList'), cals.map(c => el('li', { style: `--ec:${c.color}` },
+      el('label', { class: 'inline-check' },
+        el('input', { type: 'checkbox', checked: h.has(c.id) ? null : true, onchange: e => { setCalHidden(c.id, !e.target.checked); if (calsChanged) calsChanged(); } }),
+        el('span', { class: 'sw' }), el('span', {}, c.label, c.added ? el('small', { class: 'muted' }, ' · added by you') : null)),
+      c.added ? el('button', { class: 'mini', onclick: () => removeExtraCal(c.id) }, 'Remove') : null)));
+  }
+  function removeExtraCal(id) {
+    Config.set('extraCals', Config.get('extraCals', []).filter(x => x.id !== id));
+    Cals.list = null;
+    drawCalendarList();
+    if (calsChanged) calsChanged();
+  }
+  $('#acAdd').addEventListener('click', async () => {
+    const id = $('#acId').value.trim(), name = $('#acName').value.trim(), msg = $('#acMsg');
+    if (!/^[^\s@]+@[^\s@]+$/.test(id)) { msg.textContent = 'Type the calendar\'s address, like name@gmail.com.'; return; }
+    if ((Cals.list || []).some(c => c.id === id)) { msg.textContent = 'That calendar is already in your planner.'; return; }
+    msg.textContent = 'Checking that the planner can read it…';
+    try {
+      await connectorEvents(today(), addDays(today(), 1), true, id);
+    } catch (err) {
+      console.warn(err);
+      msg.textContent = err && err.code === 'tool_error'
+        ? 'Google says this calendar isn\'t shared with your connected account. Share it first (see the steps above), then try again.'
+        : connectorProblem(err)[0];
+      return;
+    }
+    Config.set('extraCals', Config.get('extraCals', []).concat([{ id, name: name || id }]));
+    Cals.list = null;
+    $('#acId').value = ''; $('#acName').value = '';
+    msg.textContent = 'Added.';
+    await drawCalendarList();
+    if (calsChanged) calsChanged();
+  });
+  $('#acClose').addEventListener('click', () => $('#calsDlg').close());
 
   // ---- add, change and delete Google Calendar events ----
   const hm = ms => { const d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
