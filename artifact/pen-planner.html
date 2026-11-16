@@ -2097,6 +2097,8 @@ button.adchip { cursor: pointer; }
       { id: 'n-dinner', label: 'Eat a home-made dinner', mins: 30 },
       { id: 'n-food', label: "Check tomorrow's meals are ready", mins: 10 },
       { id: 'n-mealprep', label: 'Weekly meal prep: plan, shop and cook', mins: 120, days: [0] },
+      { id: 'n-reports', label: "Report all of today's classes", mins: 20 },
+      { id: 'n-messages', label: 'Answer every message: no unread on WhatsApp or social media', mins: 15 },
       { id: 'n-skin', label: 'Night skincare: remove makeup, cleanse, treatment, moisturiser', mins: 10 },
       { id: 'n-read', label: 'Read for 20 minutes, no screens', mins: 20 },
       { id: 'n-top3', label: "Pick tomorrow's top 3 tasks", mins: 5 },
@@ -2113,9 +2115,17 @@ button.adchip { cursor: pointer; }
   const stepsOn = (which, date) => routines()[which].filter(st => stepOn(st, date));
   // Once: swap the old sample routines for the skincare / meal prep / reading / study routines.
   function migrateRoutines() {
-    if (Config.get('routinesV', 1) >= 2) return;
-    Config.set('routines', DEFAULT_ROUTINES);
-    Config.set('routinesV', 2);
+    const v = Config.get('routinesV', 1);
+    if (v >= 3) return;
+    if (v < 2) { Config.set('routines', DEFAULT_ROUTINES); Config.set('routinesV', 3); return; }
+    // v3: class reports and messages before bed, added before night skincare (your other changes stay)
+    const all = { ...routines() }, night = [...all.night];
+    const add = DEFAULT_ROUTINES.night.filter(st => (st.id === 'n-reports' || st.id === 'n-messages') && !night.some(x => x.id === st.id));
+    const at = night.findIndex(x => x.id === 'n-skin');
+    night.splice(at >= 0 ? at : night.length, 0, ...add);
+    all.night = night;
+    Config.set('routines', all);
+    Config.set('routinesV', 3);
   }
   const logOf = date => Store.items.get('rt-' + date);
   const isDone = (date, id) => { const l = logOf(date); return !!(l && l.done[id]); };
