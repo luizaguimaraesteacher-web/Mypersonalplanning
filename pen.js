@@ -1075,11 +1075,10 @@
     $('#mvMsg').textContent = '';
     const cal = (Cals.list || []).find(c => c.id === ev.calId);
     const readOnly = cal && (cal.role === 'reader' || cal.role === 'freeBusyReader');
-    $('#mvGo').disabled = !!readOnly;
-    if (readOnly) $('#mvMsg').textContent = `"${cal.label}" is view-only for the Google account connected to Claude, so it can only be moved in Google Calendar (or after it's shared with "Make changes to events").`;
+    $('#mvGo').disabled = false;
+    $('#mvNote').textContent = readOnly ? `"${cal.label}" can't be changed from the planner, so this reschedules it in the planner only (Google Calendar keeps the old time).` : 'It moves in Google Calendar too. Guests aren\'t emailed.';
     $('#moveEvDlg').showModal();
     const box = $('#mvSlots');
-    if (readOnly) { fill(box); return; }
     fill(box, el('p', { class: 'muted small' }, 'Looking for free times…'));
     const from = iso(new Date(ev.start)) > today() ? iso(new Date(ev.start)) : today();
     try {
@@ -1094,6 +1093,16 @@
   }
   async function moveEventTo(ev, t) {
     const len = ev.end > ev.start ? ev.end - ev.start : 36e5, msg = $('#mvMsg');
+    if (calReadOnly(ev.calId) || ev.virtual) {
+      // planner only: the class shows as rescheduled; Google Calendar is not touched
+      const rec = recFor(ev);
+      rec.status = 'moved'; rec.newStart = t;
+      Store.save(rec);
+      $('#moveEvDlg').close();
+      toast(`Rescheduled in the planner to ${dayTime(t)}.`, 4000);
+      if (document.body.classList.contains('view-calendar')) showMonth(state.month, true); else renderCalendar();
+      return;
+    }
     msg.textContent = 'Moving it in Google Calendar…';
     $('#moveEvDlg').querySelectorAll('button.slot, #mvGo').forEach(b => { b.disabled = true; });
     try {
@@ -1489,7 +1498,7 @@ function send(o) {
       if (accts.length && failed.length === accts.length) throw firstErr;
       events.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
       events.failed = failed;
-      return events;
+      return applyLocalMoves(events, from, to);
     }
     const cals = await calendarList(force);
     const results = await Promise.allSettled(cals.map(c => connectorEvents(from, to, force, c.id || undefined)));
@@ -1511,8 +1520,29 @@ function send(o) {
     if (cals.length && failed.length === cals.length) throw firstErr;
     events.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
     events.failed = failed;
+    return applyLocalMoves(events, from, to);
+  }
+  // ---- classes rescheduled in the planner only (calendars the planner can't change, like a view-only class calendar) ----
+  const calReadOnly = id => { const c = (Cals.list || []).find(x => x.id === id); return !!(c && (c.role === 'reader' || c.role === 'freeBusyReader')); };
+  const localMoved = r => r && r.kind === 'class' && r.status === 'moved' && r.newStart && !(r.gMoved && r.gMovedTo === r.newStart);
+  // The original event stays on its day, crossed out; a copy shows at the new time (same notes page).
+  function applyLocalMoves(events, from, to) {
+    const recs = Store.list('class').filter(localMoved);
+    if (!recs.length) return events;
+    const byKey = new Map(recs.map(r => [r.id, r]));
+    for (const e of events) { const r = !e.virtual && byKey.get(classKey(e)); if (r) { e.movedTo = r.newStart; e.free = true; } }
+    const lo = parse(from).getTime(), hi = parse(to).getTime();
+    for (const r of recs) {
+      if (!r.eventId || r.newStart < lo || r.newStart >= hi) continue;
+      const cal = (Cals.list || [...Cals.seen.values()]).find(c => c.id === r.calId);
+      const dur = r.end > r.start ? r.end - r.start : 36e5;
+      events.push({ id: r.eventId, title: r.gTitle || r.title || 'Class', allDay: false, free: false, multiDay: false, location: r.location || '', description: r.gDescription || '',
+        start: r.newStart, end: r.newStart + dur, calId: r.calId, color: cal ? cal.color : undefined, virtual: true, movedFrom: r.start });
+    }
+    events.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
     return events;
   }
+
   // Events whose name contains one of these words are left out (e.g. classes of another teacher).
   const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   // Calendars whose events are classes (student, homework, last class). Not set yet = every calendar, as before.
@@ -1891,7 +1921,7 @@ function send(o) {
     const act = (cls, label, title, fn, off) => el('button', { class: 'evact ' + cls + (off ? ' off' : ''), title: off ? 'This calendar is view-only for your connected Google account' : title, 'aria-disabled': off ? 'true' : null,
       onclick: e => { e.stopPropagation(); toggleSwipe(li, false); if (off) { readOnlyHelp(cal); return; } fn(); } }, label);
     return el('div', { class: 'evacts' },
-      act('move', '⏱ Move', 'Find another time', () => openMoveEvent(ev), ro),
+      act('move', '⏱ Move', ro ? 'Reschedule in the planner (this calendar can\'t be changed from here)' : 'Find another time', () => openMoveEvent(ev)),
       act('allday', '↦ All-day', 'Make it an all-day event that doesn\'t block time', () => makeAllDay(ev), ro),
       act('done' + (done ? ' on' : ''), done ? '↺ Undo' : '✓ Done', done ? 'Mark as not done' : 'Mark as done', () => {
         const c = recFor(ev);
@@ -1970,14 +2000,15 @@ function send(o) {
       const color = okColor(ev.color);
       const rec = Store.items.get(classKey(ev));
       const others = clash.get(ev);
-      const sub = [ev.end > ev.start ? `until ${timeOf(ev.end)}` : null, ev.location || null, Cals.list && Cals.list.length > 1 ? calName(ev.calId) : null].filter(Boolean).join(' · ');
+      const sub = [ev.movedTo ? `Rescheduled to ${dayTime(ev.movedTo)}` : null, ev.virtual ? `Rescheduled from ${dayTime(ev.movedFrom)}` : null,
+        ev.end > ev.start ? `until ${timeOf(ev.end)}` : null, ev.location || null, Cals.list && Cals.list.length > 1 ? calName(ev.calId) : null].filter(Boolean).join(' · ');
       const what = [
         el('span', { class: 'evtitle' },
           el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
           rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status, !isClassCal(ev.calId))) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
         sub ? el('span', { class: 'evsub' }, sub) : null];
       const isPast = ev.end && ev.end < now;
-      const li = el('li', { class: 'swipe ' + (isPast ? 'past' : next.has(ev) ? 'next' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : isPast ? ' earlier' : ' more'), hidden: shown.has(ev) ? null : true });
+      const li = el('li', { class: 'swipe ' + (isPast ? 'past' : next.has(ev) ? 'next' : '') + (ev.movedTo ? ' movedaway' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : isPast ? ' earlier' : ' more'), hidden: shown.has(ev) ? null : true });
       const row = el('div', { class: 'evrow' },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, timeOf(ev.start)),
@@ -2209,7 +2240,7 @@ function send(o) {
     // keep the Google details up to date (a moved class keeps its original time here)
     Object.assign(c, { calId: ev.calId || c.calId || '', location: ev.location || '', gDescription: ev.description || '', allDayEv: false });
     if (!c.gCancelled) c.gTitle = ev.title || c.gTitle;
-    if (!c.gMoved) { c.start = ev.start; c.end = ev.end || c.end; c.date = iso(new Date(ev.start)); }
+    if (!c.gMoved && !ev.virtual && !localMoved(c)) { c.start = ev.start; c.end = ev.end || c.end; c.date = iso(new Date(ev.start)); }
     Store.save(c);
     return c;
   }
@@ -2534,6 +2565,8 @@ function send(o) {
       else if (c.gMoved && c.gMovedTo) text = `Moved on Google Calendar to ${dayTime(c.gMovedTo)}. Guests aren't emailed.`;
       else if ((c.status === 'cancelled' || (c.status === 'moved' && c.newStart)) && !c.eventId) text = 'This class isn\'t on Google Calendar, so nothing changed there.';
       else if (c.status === 'moved' && !c.newStart) text = 'Choose the new day and time, then tap Move class.';
+      else if (c.status === 'moved' && c.newStart && c.eventId && calReadOnly(c.calId)) text = `Rescheduled in the planner to ${dayTime(c.newStart)}. It shows at the new time in your planner; Google Calendar keeps the old time.`;
+      else if (c.status === 'cancelled' && c.eventId && calReadOnly(c.calId)) text = 'Marked as cancelled in the planner. Google Calendar is unchanged.';
     }
     fill(box, text ? el('span', {}, text) : null, retry ? el('button', { class: 'mini', onclick: () => syncClassToGoogle(c) }, 'Try again') : null);
   }
@@ -2545,6 +2578,7 @@ function send(o) {
   async function doSync(c) {
     const want = c.status === 'moved' && c.newStart ? 'move' : c.status === 'cancelled' ? 'cancel' : 'none';
     if (!EMBED || !c.eventId) { drawGcalLine(c); return; }
+    if (calReadOnly(c.calId)) { drawGcalLine(c); return; } // view-only calendar: kept in the planner only
     const work = (c.gMoved && want !== 'move') || (c.gCancelled && want !== 'cancel') || (want === 'cancel' && !c.gCancelled) || (want === 'move' && c.gMovedTo !== c.newStart);
     if (!work) { drawGcalLine(c); return; }
     const base = { eventId: c.eventId, notificationLevel: 'NONE', ...(c.calId ? { calendarId: c.calId } : {}) };

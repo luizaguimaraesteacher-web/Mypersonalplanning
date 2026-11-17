@@ -849,3 +849,5 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
 #errBar { position: fixed; z-index: 60; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 64px); background: #fdecea; color: #8a1f17; border: 1px solid #f3b8b1; border-radius: 12px; padding: 8px 12px; font-size: 13px; box-shadow: var(--shadow); }
 #errBar p { margin: 2px 0; overflow-wrap: anywhere; }
 .buildtag { display: block; padding: 6px 14px 2px; font-size: 11px; }
+.events.timed > li.movedaway .evtitle strong { text-decoration: line-through; color: var(--muted); }
+.events.timed > li.movedaway .evsub { color: #5b4b9a; }
