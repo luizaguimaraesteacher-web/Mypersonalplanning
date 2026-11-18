@@ -2919,6 +2919,9 @@ function send(o) {
     const lo = parse(from).getTime(), hi = parse(to).getTime();
     for (const r of recs) {
       if (!r.eventId || r.newStart < lo || r.newStart >= hi) continue;
+      // the new class is already on a calendar (same name, same start): don't show it twice
+      const name = fold(r.gTitle || r.title || '');
+      if (events.some(e => !e.virtual && e.start === r.newStart && name && fold(e.title) === name)) continue;
       const cal = (Cals.list || [...Cals.seen.values()]).find(c => c.id === r.calId);
       const dur = r.end > r.start ? r.end - r.start : 36e5;
       events.push({ id: r.eventId, title: r.gTitle || r.title || 'Class', allDay: false, free: false, multiDay: false, location: r.location || '', description: r.gDescription || '',
