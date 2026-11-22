@@ -1093,6 +1093,15 @@
   }
   async function moveEventTo(ev, t) {
     const len = ev.end > ev.start ? ev.end - ev.start : 36e5, msg = $('#mvMsg');
+    if (ev.local) {
+      savePlannerEvent(ev, { start: t, end: t + len });
+      const rec = Store.items.get(classKey(ev));
+      if (rec) { rec.start = t; rec.end = t + len; rec.date = iso(new Date(t)); Store.save(rec); }
+      $('#moveEvDlg').close();
+      toast(`Moved to ${dayTime(t)}.`, 4000);
+      afterEventChange(iso(new Date(t)));
+      return;
+    }
     if (calReadOnly(ev.calId) || ev.virtual) {
       // planner only: the class shows as rescheduled; Google Calendar is not touched
       const rec = recFor(ev);
@@ -1403,9 +1412,26 @@ function send(o) {
   }
   const isHolidayCal = id => /#holiday@group\.v\.calendar\.google\.com$/.test(id || '');
 
+  // ---- events kept only in the planner (never sent to Google Calendar) ----
+  const PLANNER_CAL = { id: 'planner', name: 'Planner only', label: 'Planner only', color: '#9b3fb5', writable: true, local: true };
+  function plannerEvents(from, to) {
+    const lo = parse(from).getTime(), hi = parse(to).getTime();
+    return Store.list('pevent').filter(e => e.start < hi && (e.end || e.start) >= lo).map(e => ({
+      id: e.id, title: e.title || '', allDay: !!e.allDay, free: false, multiDay: false, location: e.location || '', description: e.notes || '',
+      start: e.start, end: e.end || e.start + 36e5, calId: 'planner', color: PLANNER_CAL.color, local: true,
+    }));
+  }
+  function savePlannerEvent(ev, fields) {
+    const it = (ev && Store.items.get(ev.id)) || { id: 'pe-' + uid(), kind: 'pevent', created: Date.now() };
+    Object.assign(it, fields);
+    it.date = iso(new Date(it.start));
+    Store.save(it);
+    return it;
+  }
+
   // The viewer's calendars (inside Claude: from the connector; on GitHub: the ones events came from).
   async function calendarList(force) {
-    if (!EMBED) return [...Cals.seen.values()];
+    if (!EMBED) return [...Cals.seen.values(), PLANNER_CAL];
     if (Cals.list && !force) return Cals.list;
     const mcp = await window.claude.use('mcp').catch(() => null);
     if (!mcp) throw { code: 'no_mcp' };
@@ -1450,6 +1476,7 @@ function send(o) {
     });
     Cals.list = cals.length ? cals : [{ id: '', name: 'My calendar', label: 'My calendar', color: CAL_COLORS[0], writable: true }];
     applyCalSeed(Cals.list);
+    if (!Cals.list.some(c => c.local)) Cals.list.push({ ...PLANNER_CAL });
     return Cals.list;
   }
 
@@ -1496,12 +1523,13 @@ function send(o) {
         }
       });
       if (accts.length && failed.length === accts.length) throw firstErr;
+      events.push(...plannerEvents(from, to));
       events.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
       events.failed = failed;
       return applyLocalMoves(events, from, to);
     }
     const cals = await calendarList(force);
-    const results = await Promise.allSettled(cals.map(c => connectorEvents(from, to, force, c.id || undefined)));
+    const results = await Promise.allSettled(cals.map(c => c.local ? Promise.resolve(plannerEvents(from, to)) : connectorEvents(from, to, force, c.id || undefined)));
     const events = [], failed = [];
     let firstErr = null;
     results.forEach((r, i) => {
@@ -1517,7 +1545,7 @@ function send(o) {
       }
       else { failed.push(c.label); firstErr = firstErr || r.reason; }
     });
-    if (cals.length && failed.length === cals.length) throw firstErr;
+    if (cals.filter(c => !c.local).length && failed.length === cals.filter(c => !c.local).length) throw firstErr;
     events.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
     events.failed = failed;
     return applyLocalMoves(events, from, to);
@@ -1549,7 +1577,7 @@ function send(o) {
   // Events whose name contains one of these words are left out (e.g. classes of another teacher).
   const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   // Calendars whose events are classes (student, homework, last class). Not set yet = every calendar, as before.
-  const isClassCal = id => { const l = Config.get('classCals', null); return !Array.isArray(l) || l.includes(id || ''); };
+  const isClassCal = id => { if (id === 'planner') return true; const l = Config.get('classCals', null); return !Array.isArray(l) || l.includes(id || ''); };
   // Events removed from the planner only (calendars the planner can't change)
   const removedIds = () => new Set(Config.get('removedEvents', []).map(x => x.id));
   const hideWords = () => Config.get('hideWords', []).map(fold).filter(Boolean);
@@ -1735,6 +1763,17 @@ function send(o) {
     input.description = $('#evNotes').value;
     const ev = editingEvent;
     const calId = ev ? ev.calId : $('#evCal').value;
+    if (calId === 'planner') {
+      // kept in the planner only
+      const start = allDay ? parse(date).getTime() : new Date(`${date}T${$('#evStart').value}:00`).getTime();
+      const end = allDay ? parse(addDays(date, 1)).getTime() : new Date(`${date}T${$('#evEnd').value}:00`).getTime();
+      savePlannerEvent(ev, { title, allDay, start, end, location: $('#evLocation').value.trim(), notes: $('#evNotes').value });
+      Config.set('lastCal', 'planner');
+      $('#eventDlg').close();
+      toast(ev ? 'Updated in your planner' : 'Added to your planner (not to Google Calendar)');
+      afterEventChange(date);
+      return;
+    }
     if (calId) input.calendarId = calId;
     $('#evSave').disabled = true;
     msg.textContent = 'Saving…';
@@ -1769,6 +1808,14 @@ function send(o) {
     deleteEventFlow(ev, true);
   });
   async function deleteEventFlow(ev, reopen) {
+    if (ev.local) {
+      if (!(await ask(`Delete "${ev.title || 'this event'}" from your planner?`, 'Delete'))) { if (reopen) $('#eventDlg').showModal(); return; }
+      Store.remove(ev.id);
+      toast('Deleted from your planner.');
+      if (recClass && recClass.eventId === ev.id && document.body.classList.contains('view-class')) go('day/' + recClass.date);
+      else afterEventChange(iso(new Date(ev.start)));
+      return;
+    }
     const cal = (Cals.list || []).find(c => c.id === ev.calId);
     if (cal && (cal.role === 'reader' || cal.role === 'freeBusyReader')) {
       if (!(await ask(`"${cal.label}" can't be changed from the planner, so "${ev.title || 'this event'}" will only be removed from the planner. It stays in Google Calendar. (You can bring it back in + Calendars.)`, 'Remove from planner'))) { if (reopen) $('#eventDlg').showModal(); return; }
@@ -1956,6 +2003,7 @@ function send(o) {
     const first = iso(new Date(ev.start)), last = iso(new Date(ev.end - 1));
     const range = first === last ? `on ${fmt(first, { weekday: 'short', month: 'short', day: 'numeric' })}` : `from ${fmt(first, { month: 'short', day: 'numeric' })} to ${fmt(last, { month: 'short', day: 'numeric' })}`;
     if (!(await ask(`Make "${ev.title || 'this event'}" an all-day event ${range}? It stays in your Google Calendar but won't block your time.`, 'Make all-day'))) return;
+    if (ev.local) { savePlannerEvent(ev, { allDay: true, start: parse(first).getTime(), end: parse(addDays(last, 1)).getTime() }); afterEventChange(first); return; }
     const base = { eventId: ev.id, notificationLevel: 'NONE', ...(ev.calId ? { calendarId: ev.calId } : {}) };
     try {
       await calCall('update_event', { ...base, allDay: true, startTime: first + 'T00:00:00', endTime: addDays(last, 1) + 'T00:00:00', availability: 'AVAILABILITY_FREE' });
@@ -2250,7 +2298,7 @@ function send(o) {
   }
   // The Google event behind a class, as the editor needs it
   const eventOf = c => ({
-    id: c.eventId, calId: c.calId, title: c.gCancelled ? 'Cancelled: ' + (c.gTitle || c.title) : (c.gTitle || c.title), allDay: false,
+    id: c.eventId, calId: c.calId, local: c.calId === 'planner', title: c.gCancelled ? 'Cancelled: ' + (c.gTitle || c.title) : (c.gTitle || c.title), allDay: false,
     start: c.gMoved && c.gMovedTo ? c.gMovedTo : c.start,
     end: (c.gMoved && c.gMovedTo ? c.gMovedTo : c.start) + (c.end > c.start ? c.end - c.start : 36e5),
     location: c.location || '', description: c.gDescription || '',
@@ -2515,7 +2563,7 @@ function send(o) {
       desc ? el('details', { class: 'evinfo-desc' }, el('summary', {}, 'Event description'), el('p', {}, desc)) : null,
       el('div', { class: 'evinfo-actions' },
         linked && EMBED ? el('button', { class: 'mini', onclick: () => openEventEditor(eventOf(c)) }, 'Edit event') : null,
-        linked && EMBED ? el('button', { class: 'mini', onclick: () => saveNotesToGoogle(c) }, 'Save notes to Google Calendar') : null,
+        linked && EMBED && c.calId !== 'planner' ? el('button', { class: 'mini', onclick: () => saveNotesToGoogle(c) }, 'Save notes to Google Calendar') : null,
         linked && EMBED ? el('button', { class: 'mini danger', onclick: () => deleteEventFlow(eventOf(c), false) }, 'Delete event') : null),
       el('p', { id: 'evinfoMsg', class: 'small muted' }));
   }
@@ -2583,6 +2631,16 @@ function send(o) {
     const want = c.status === 'moved' && c.newStart ? 'move' : c.status === 'cancelled' ? 'cancel' : 'none';
     if (!EMBED || !c.eventId) { drawGcalLine(c); return; }
     if (calReadOnly(c.calId)) { drawGcalLine(c); return; } // view-only calendar: kept in the planner only
+    if (c.calId === 'planner') {
+      // a planner-only event: move the event itself
+      if (want === 'move' && c.gMovedTo !== c.newStart) {
+        const dur = c.end > c.start ? c.end - c.start : 36e5;
+        savePlannerEvent({ id: c.eventId }, { start: c.newStart, end: c.newStart + dur });
+        c.gMoved = true; c.gMovedTo = c.newStart; Store.save(c);
+      }
+      drawGcalLine(c, want === 'move' ? `Moved in your planner to ${dayTime(c.newStart)}.` : want === 'cancel' ? 'Marked as cancelled in your planner.' : '');
+      return;
+    }
     const work = (c.gMoved && want !== 'move') || (c.gCancelled && want !== 'cancel') || (want === 'cancel' && !c.gCancelled) || (want === 'move' && c.gMovedTo !== c.newStart);
     if (!work) { drawGcalLine(c); return; }
     const base = { eventId: c.eventId, notificationLevel: 'NONE', ...(c.calId ? { calendarId: c.calId } : {}) };
@@ -3743,6 +3801,7 @@ function send(o) {
           (['gratitude', 'tasknote'].includes(it.kind) && isDate(it.date) && Array.isArray(it.strokes)) ||
           (it.kind === 'expense' && isDate(it.date) && typeof it.amount === 'number') ||
           (it.kind === 'notebook' && typeof it.created === 'number') ||
+          (it.kind === 'pevent' && typeof it.start === 'number') ||
           (it.kind === 'photo' && isDate(it.date)) ||
           (it.kind === 'plan' && isDate(it.date) && Array.isArray(it.items)) ||
           (it.kind === 'config' && it.id.startsWith('cfg-')));
