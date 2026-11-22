@@ -125,9 +125,9 @@
     <section id="view-money" class="view">
       <div class="moneyhead">
         <div class="monthnav">
-          <button class="round" id="prevMonthX" aria-label="Previous month">‹</button>
+          <button class="round" id="prevMonthX" aria-label="Previous week">‹</button>
           <div class="daytitle"><h1 id="moneyTitle">Money</h1><p id="moneySub" class="muted"></p></div>
-          <button class="round" id="nextMonthX" aria-label="Next month">›</button>
+          <button class="round" id="nextMonthX" aria-label="Next week">›</button>
         </div>
         <div class="moneyactions">
           <button class="mini primary" id="addExpenseBtn">− Expense</button>
@@ -155,19 +155,18 @@
     <!-- MONTH CALENDAR -->
     <section id="view-calendar" class="view">
       <div class="monthhead">
-        <button class="round" id="prevMonth" aria-label="Previous month">‹</button>
+        <button class="round" id="prevMonth" aria-label="Previous week">‹</button>
         <h1 id="monthTitle"></h1>
-        <button class="round" id="nextMonth" aria-label="Next month">›</button>
-        <button class="mini" id="thisMonth">This month</button>
+        <button class="round" id="nextMonth" aria-label="Next week">›</button>
+        <button class="mini" id="thisMonth">This week</button>
         <button class="mini primary" id="monthAdd" hidden>+ Event</button>
       </div>
       <div id="calChips" class="calchips"></div>
-      <div id="monthGrid" class="month"></div>
+      <div id="monthGrid" class="week"></div>
       <div class="monthfoot">
         <div id="monthStatus" class="small"></div>
         <div class="legend small">
           <span><span class="mt">2 to do</span> tasks</span>
-          <span><span class="mn">1 note</span> study notes</span>
           <span><span class="rp morning full"></span><span class="rp night part"></span> morning &amp; night routine</span>
         </div>
       </div>

@@ -46,7 +46,7 @@
   }
 
   // Any error is shown on screen (iPad has no console), so a problem can be reported instead of buttons silently doing nothing.
-  const BUILD = 'b31';
+  const BUILD = 'b32';
   let errShown = 0;
   function showErr(where, err) {
     console.warn(where, err);
@@ -1109,7 +1109,7 @@
       Store.save(rec);
       $('#moveEvDlg').close();
       toast(`Rescheduled in the planner to ${dayTime(t)}.`, 4000);
-      if (document.body.classList.contains('view-calendar')) showMonth(state.month, true); else renderCalendar();
+      if (document.body.classList.contains('view-calendar')) showWeek(state.week || today(), true); else renderCalendar();
       return;
     }
     msg.textContent = 'Moving it in Google Calendar…';
@@ -1149,7 +1149,7 @@
     let cals = [];
     try { cals = await calendarList(); } catch { /* none */ }
     const h = hiddenCals(), ok = cals.filter(c => c.writable && !c.busyOnly && c.role !== 'reader' && c.role !== 'freeBusyReader').sort((a, b) => h.has(a.id) - h.has(b.id));
-    const pick = ok.find(c => !h.has(c.id) && c.id === Config.get('lastCal', null)) || ok.find(c => !h.has(c.id)) || ok[0];
+    const pick = ok.find(c => c.id === 'planner') || ok.find(c => !h.has(c.id)) || ok[0];
     fill($('#ftCal'), ok.map(c => el('option', { value: c.id, selected: pick && c.id === pick.id ? true : null }, c.label)));
     $('#findDlg').showModal();
     drawSlots();
@@ -1206,73 +1206,54 @@
   }
 
   // ---------- month calendar ----------
-  function showMonth(month, force) {
+  // Week view: Sunday to Saturday, one column per day (stacked on a phone)
+  const weekOf = d => addDays(d, -parse(d).getDay());
+  function showWeek(date, force) {
     unmountAll();
-    state.month = month;
+    const start = weekOf(date), end = addDays(start, 7), t = today();
+    state.week = start;
     setView('calendar');
-    const [y, m] = month.split('-').map(Number);
-    const first = new Date(y, m - 1, 1), t = today();
-    const nextMonth = iso(new Date(y, m, 1)).slice(0, 7), prevMonth = iso(new Date(y, m - 2, 1)).slice(0, 7);
-    $('#monthTitle').textContent = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-    $('#prevMonth').onclick = () => go('calendar/' + prevMonth);
-    $('#nextMonth').onclick = () => go('calendar/' + nextMonth);
-    $('#thisMonth').onclick = () => go('calendar/' + t.slice(0, 7));
-    $('#thisMonth').hidden = month === t.slice(0, 7);
-
-    // Sunday-first grid covering the whole month
-    const start = iso(new Date(y, m - 1, 1 - first.getDay()));
-    const daysInMonth = new Date(y, m, 0).getDate();
-    const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
-    const dates = Array.from({ length: weeks * 7 }, (_, i) => addDays(start, i));
-    const end = addDays(dates[dates.length - 1], 1);
+    const dates = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    const a = parse(start), b = parse(dates[6]);
+    $('#monthTitle').textContent = a.getMonth() === b.getMonth()
+      ? `${a.toLocaleDateString(undefined, { month: 'long' })} ${a.getDate()}–${b.getDate()}, ${b.getFullYear()}`
+      : `${fmt(start, { month: 'short', day: 'numeric' })} – ${fmt(dates[6], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    $('#prevMonth').onclick = () => go('calendar/' + addDays(start, -7));
+    $('#nextMonth').onclick = () => go('calendar/' + end);
+    $('#thisMonth').onclick = () => go('calendar/' + weekOf(t));
+    $('#thisMonth').hidden = start === weekOf(t);
 
     const tasks = Store.list('task').filter(x => x.strokes.length && x.date >= start && x.date < end);
-    const notes = Store.list('note').filter(n => !n.notebookId && (n.strokes.length || n.subject) && n.date >= start && n.date < end);
     const R = routines();
     const pip = (which, d) => {
       const n = R[which].length, c = doneCount(which, d);
       return el('span', { class: `rp ${which}` + (n && c === n ? ' full' : c ? ' part' : ''), title: `${RT[which].title}: ${c} of ${n}` });
     };
-
-    const grid = $('#monthGrid');
     const cells = new Map();
-    fill(grid, 
-      ...Array.from({ length: 7 }, (_, i) => el('span', { class: 'mdow' }, fmt(dates[i], { weekday: 'short' }))),
-      ...dates.map(d => {
-        const dayTasks = tasks.filter(x => x.date === d);
-        const open = dayTasks.filter(x => !x.done).length;
-        const nNotes = notes.filter(n => n.date === d).length;
-        const sItems = planItemsOn(d).map(r => r.it), sDone = sItems.filter(it => it.done).length;
-        const evBox = el('span', { class: 'mev' });
-        const marks = el('span', { class: 'mmarks' },
-          dayTasks.length ? el('span', { class: 'mt' + (open ? '' : ' alldone'), title: open ? `${open} task${open === 1 ? '' : 's'} to do` : 'All tasks done' },
-            open ? `${open} to do` : '✓ done') : null,
-          nNotes ? el('span', { class: 'mn', title: `${nNotes} study note${nNotes === 1 ? '' : 's'}` }, `${nNotes} note${nNotes === 1 ? '' : 's'}`) : null,
-          sItems.length ? el('span', { class: 'ms' + (sDone === sItems.length ? ' alldone' : ''), title: `Study plan: ${sDone} of ${sItems.length} done` }, sDone === sItems.length ? '✓ study' : `${sItems.length - sDone} study`) : null,
+    fill($('#monthGrid'), ...dates.map(d => {
+      const dayTasks = tasks.filter(x => x.date === d), open = dayTasks.filter(x => !x.done).length;
+      const sItems = planItemsOn(d).map(r => r.it), sDone = sItems.filter(it => it.done).length;
+      const evBox = el('div', { class: 'wev' });
+      cells.set(d, evBox);
+      return el('div', { class: 'wday' + (d === t ? ' today' : '') + (d < t ? ' past' : '') },
+        el('button', { class: 'whd', onclick: () => go('day/' + d), 'aria-label': 'Open ' + fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }) },
+          el('span', { class: 'wdow' }, fmt(d, { weekday: 'short' })), el('span', { class: 'wnum' }, String(parse(d).getDate()))),
+        evBox,
+        el('div', { class: 'mmarks' },
+          dayTasks.length ? el('span', { class: 'mt' + (open ? '' : ' alldone') }, open ? `${open} to do` : '✓ tasks') : null,
+          sItems.length ? el('span', { class: 'ms' + (sDone === sItems.length ? ' alldone' : '') }, sDone === sItems.length ? '✓ study' : `${sItems.length - sDone} study`) : null,
           photoOf(d) ? el('img', { class: 'mphoto', src: photoSrc(photoOf(d)), alt: '' }) : null,
-          d <= t ? el('span', { class: 'rps' }, pip('morning', d), pip('night', d)) : null);
-        const cell = el('div', {
-          class: 'mcell' + (d.slice(0, 7) !== month ? ' out' : '') + (d === t ? ' today' : ''),
-          onclick: e => { if (!e.target.closest('.me')) go('day/' + d); },
-        }, el('button', { class: 'mnum', 'aria-label': 'Open ' + fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }) }, String(parse(d).getDate())), evBox, marks);
-        cells.set(d, evBox);
-        return cell;
-      }));
+          d <= t ? el('span', { class: 'rps' }, pip('morning', d), pip('night', d)) : null));
+    }));
 
-    // Google Calendar events, filled in when they arrive
     const status = $('#monthStatus');
-    if (!EMBED && !Cal.url()) {
-      fill(status, el('span', {}, 'Connect Google Calendar to see your events here. '),
-        el('button', { class: 'mini', onclick: openCalSetup }, 'Connect'));
-      return;
-    }
-    fill(status, el('span', { class: 'muted' }, 'Loading your Google calendars…'));
     $('#monthAdd').hidden = !EMBED;
-    $('#monthAdd').onclick = () => openEventEditor(null, month === t.slice(0, 7) ? t : month + '-01');
+    $('#monthAdd').onclick = () => openEventEditor(null, start <= t && t < end ? t : start);
+    fill(status, el('span', { class: 'muted' }, 'Loading your calendars…'));
     fetchEvents(start, end, force).then(all => {
-      if (state.month !== month || !document.body.classList.contains('view-calendar')) return;
-      renderCalChips($('#calChips'), () => showMonth(month));
-      const events = visibleEvents(all);
+      if (state.week !== start || !document.body.classList.contains('view-calendar')) return;
+      renderCalChips($('#calChips'), () => showWeek(start));
+      const events = visibleEvents(all).slice().sort((x, y) => (y.allDay - x.allDay) || x.start - y.start);
       const byDay = new Map();
       for (const ev of events) for (const d of eventDays(ev)) {
         if (!byDay.has(d)) byDay.set(d, []);
@@ -1280,22 +1261,22 @@
       }
       for (const [d, box] of cells) {
         const list = byDay.get(d) || [];
-        fill(box, ...list.slice(0, 3).map(ev => el('button', { class: 'me' + (ev.allDay ? ' allday' : ''), style: `--ec:${ev.color || CAL_COLORS[0]}`,
-            title: ev.title || '', onclick: () => { if (ev.busy) go('day/' + iso(new Date(ev.start))); else if (!ev.allDay) openClassFor(ev); else if (EMBED && ev.id) openEventEditor(ev); else go('day/' + iso(new Date(ev.start))); } },
-          ev.allDay ? '' : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), ev.busy ? 'Busy' : ev.title || '(No title)')),
-          list.length > 3 ? el('span', { class: 'more' }, `+${list.length - 3} more`) : null,
-          list.length ? el('span', { class: 'mcount', 'aria-hidden': 'true' }, String(list.length)) : null);
+        fill(box, ...list.map(ev => el('button', {
+          class: 'we' + (ev.allDay ? ' allday' : '') + (ev.movedTo || isCancelled(ev) ? ' movedaway' : '') + (!ev.allDay && (ev.end || ev.start) < Date.now() ? ' done' : ''),
+          style: `--ec:${ev.color || CAL_COLORS[0]}`, title: ev.title || '',
+          onclick: () => { if (ev.busy) go('day/' + d); else if (!ev.allDay) openClassFor(ev); else if (EMBED && ev.id) openEventEditor(ev); else go('day/' + d); },
+        }, ev.allDay ? null : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), el('span', {}, ev.busy ? 'Busy' : ev.title || '(No title)'))),
+        list.length ? null : el('span', { class: 'wempty' }, '—'));
       }
       const n = events.length;
-      fill(status, el('span', { class: 'muted' }, `${n} event${n === 1 ? '' : 's'} this month` + (all.failed && all.failed.length ? ` · couldn't read ${all.failed.join(', ')}` : '')),
-        el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => showMonth(month, true) }, '↻'));
+      fill(status, el('span', { class: 'muted' }, `${n} event${n === 1 ? '' : 's'} this week` + (all.failed && all.failed.length ? ` · couldn't read ${all.failed.join(', ')}` : '')),
+        el('button', { class: 'icon-btn sm', title: 'Refresh', 'aria-label': 'Refresh calendar', onclick: () => showWeek(start, true) }, '↻'));
     }).catch(err => {
-      if (state.month !== month) return;
+      if (state.week !== start) return;
       console.warn(err);
       if (EMBED) {
         const [msg, action] = connectorProblem(err);
-        fill(status, el('span', {}, msg + ' '),
-          action ? el('button', { class: 'mini', onclick: () => showMonth(month, true) }, action[0]) : null);
+        fill(status, el('span', {}, msg + ' '), action ? el('button', { class: 'mini', onclick: () => showWeek(start, true) }, action[0]) : null);
       } else {
         fill(status, el('span', {}, (err && err.message) || "Couldn't load your calendar."), el('button', { class: 'mini', onclick: openCalSetup }, 'Check connection'));
       }
@@ -1718,8 +1699,8 @@ function send(o) {
       $('#evLocation').value = ev.location || '';
       $('#evNotes').value = ev.description || '';
     } else {
-      const last = Config.get('lastCal', '');
-      if ([...sel.options].some(o => o.value === last)) sel.value = last;
+      // new events go to the planner only, unless another calendar is picked
+      if ([...sel.options].some(o => o.value === 'planner')) sel.value = 'planner';
       $('#evTitle').value = ''; $('#evDate').value = date || state.date || today(); $('#evAllDay').checked = false;
       $('#evStart').value = '09:00'; $('#evEnd').value = '10:00'; $('#evLocation').value = ''; $('#evNotes').value = '';
     }
@@ -1746,7 +1727,7 @@ function send(o) {
   }
   async function afterEventChange(date) {
     try { const mcp = await window.claude.use('mcp'); if (mcp) await mcp.invalidate('Google Calendar'); } catch { /* nothing cached */ }
-    if (document.body.classList.contains('view-calendar')) showMonth(state.month, true);
+    if (document.body.classList.contains('view-calendar')) showWeek(state.week || today(), true);
     else if (document.body.classList.contains('view-day')) renderCalendar(true);
   }
   $('#evSave').addEventListener('click', async () => {
@@ -3752,7 +3733,7 @@ function send(o) {
     else if (view === 'routines') showRoutines();
     else if (view === 'notebooks') showNotebooks();
     else if (view === 'money') showMoney(/^\d{4}-\d\d$/.test(arg || '') ? arg : (state.moneyMonth || today().slice(0, 7)));
-    else if (view === 'calendar') showMonth(/^\d{4}-\d\d$/.test(arg || '') ? arg : (state.month || today().slice(0, 7)));
+    else if (view === 'calendar') showWeek(/^\d{4}-\d\d-\d\d$/.test(arg || '') ? arg : /^\d{4}-\d\d$/.test(arg || '') ? arg + '-01' : (state.week || today()));
     else showDay(isDate(arg) ? arg : today());
   }
   addEventListener('hashchange', () => { if (!EMBED) route(); });

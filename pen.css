@@ -851,3 +851,37 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
 .buildtag { display: block; padding: 6px 14px 2px; font-size: 11px; }
 .events.timed > li.movedaway .evtitle strong { text-decoration: line-through; color: var(--muted); }
 .events.timed > li.movedaway .evsub { color: #5b4b9a; }
+
+/* ---- Calendar tab: week view ---- */
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.wday {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0;
+  padding: 8px 6px 10px; display: flex; flex-direction: column; gap: 6px; min-height: 360px;
+}
+.wday.past { background: #fcfbf8; }
+.whd { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; padding: 2px 0 4px; }
+.wdow { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.wnum { font-size: 18px; font-weight: 700; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; }
+.wday.today .wnum { background: var(--ink); color: #fff; }
+.wday.today { outline: 2px solid var(--ink); outline-offset: -2px; }
+.wev { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.we {
+  display: block; width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; font-size: 12px; line-height: 1.25;
+  background: color-mix(in srgb, var(--ec, #3f6fd8) 14%, #fff); color: color-mix(in srgb, var(--ec, #3f6fd8) 70%, #000);
+  border-left: 3px solid var(--ec, #3f6fd8); border-radius: 6px; padding: 4px 6px; overflow-wrap: anywhere;
+}
+.we b { display: block; font-size: 11px; font-weight: 700; }
+.we.allday { background: var(--ec, #3f6fd8); color: #fff; font-size: 11px; padding: 2px 6px; }
+.we.done { opacity: .6; }
+.we.movedaway span { text-decoration: line-through; }
+.wempty { color: #c4bdb0; text-align: center; font-size: 12px; }
+.wday .mmarks { margin-top: auto; }
+@media (max-width: 720px) {
+  .week { grid-template-columns: 1fr; }
+  .wday { min-height: 0; flex-direction: row; flex-wrap: wrap; align-items: flex-start; padding: 8px 10px; }
+  .whd { width: 48px; flex: none; }
+  .wev { flex: 1; }
+  .wday .mmarks { width: 100%; margin-top: 0; }
+  .we { font-size: 14px; }
+  .we b { display: inline; margin-right: 6px; font-size: 13px; }
+}
