@@ -3328,6 +3328,7 @@ function send(o) {
   }
 
   const EVENTS_NEXT = 3;
+  const isCancelled = ev => { const r = !ev.allDay && Store.items.get(classKey(ev)); return !!(r && r.status === 'cancelled'); };
   const clashId = (a, b) => [a.id || 't' + a.start, b.id || 't' + b.start].sort().join('|') + '|' + Math.min(a.start, b.start);
   function solveClash(ev, others) {
     const ok = Config.get('clashOk', []).concat(others.map(o => clashId(ev, o)));
@@ -3379,7 +3380,7 @@ function send(o) {
     // events that overlap in time
     const clash = new Map(), solved = new Set(Config.get('clashOk', []));
     timed.forEach((a, x) => timed.forEach((b, y) => {
-      if (x === y || a.free || b.free || a.busy && b.busy || solved.has(clashId(a, b))) return;
+      if (x === y || a.free || b.free || a.busy && b.busy || solved.has(clashId(a, b)) || isCancelled(a) || isCancelled(b)) return;
       const aEnd = a.end > a.start ? a.end : a.start + 1, bEnd = b.end > b.start ? b.end : b.start + 1;
       if (a.start < bEnd && b.start < aEnd) { if (!clash.has(a)) clash.set(a, []); clash.get(a).push(b); }
     }));
@@ -3396,7 +3397,7 @@ function send(o) {
           rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status, !isClassCal(ev.calId))) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
         sub ? el('span', { class: 'evsub' }, sub) : null];
       const isPast = ev.end && ev.end < now;
-      const li = el('li', { class: 'swipe ' + (isPast ? 'past' : next.has(ev) ? 'next' : '') + (ev.movedTo ? ' movedaway' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : isPast ? ' earlier' : ' more'), hidden: shown.has(ev) ? null : true });
+      const li = el('li', { class: 'swipe ' + (isPast ? 'past' : next.has(ev) ? 'next' : '') + (ev.movedTo || isCancelled(ev) ? ' movedaway' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : isPast ? ' earlier' : ' more'), hidden: shown.has(ev) ? null : true });
       const row = el('div', { class: 'evrow' },
         el('span', { class: 'cdot', style: color ? `background:${color}` : null }),
         el('span', { class: 'when' }, timeOf(ev.start)),
