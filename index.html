@@ -103,10 +103,10 @@
     <section id="view-notebooks" class="view">
       <div class="libhead">
         <h1>Notebooks</h1>
-        <span class="head-actions"><button class="mini primary" id="nbNew">+ New notebook</button></span>
+        <span class="head-actions"><button class="mini" id="nbImport">⤒ Import PDF</button><button class="mini primary" id="nbNew">+ New notebook</button></span>
       </div>
       <div id="nbGrid" class="nb-grid"></div>
-      <p id="nbEmpty" class="empty" hidden>No notebooks yet. Tap <b>+ New notebook</b> to start one.</p>
+      <p id="nbEmpty" class="empty" hidden>No notebooks yet. Tap <b>+ New notebook</b> to start one, or <b>⤒ Import PDF</b> to write on a PDF.</p>
     </section>
 
     <!-- ONE NOTEBOOK -->
@@ -114,6 +114,7 @@
       <div class="notehead">
         <a class="mini" href="#notebooks">‹ Notebooks</a>
         <input id="nbName" placeholder="Notebook name" autocomplete="off" aria-label="Notebook name" />
+        <button class="mini" id="nbAddPdf">⤒ Add PDF</button>
         <button class="mini" id="nbPdf">⤓ PDF</button>
         <button class="mini danger" id="nbDelete">Delete</button>
       </div>
