@@ -904,6 +904,15 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
 .askfoot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
 @media (max-width: 620px) { .askbar { padding: 0 12px; } .askform input { font-size: 14px; } }
 
+/* ---- confirmed classes ---- */
+.st-confirmed { background: #e6eefc; color: #2f5fd0; }
+.events.timed .what .evtitle .st-confirmed { color: #2f5fd0; }
+.evact.confirm { background: #2f5fd0; }
+.evact.confirm.on { background: #77736b; }
+.confirmbtn { margin: -4px 0 12px; }
+.confirmbtn.on { background: #2f5fd0; color: #fff; border-color: #2f5fd0; }
+.we .wconf { font-style: normal; }
+
 </style>
 <header class="top">
     <a class="brand" href="#day">✎ Pen Planner</a>
@@ -1090,6 +1099,7 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
         <button class="mini danger" id="classDelete">Delete</button>
       </div>
       <p id="classWhen" class="muted small"></p>
+      <button class="mini confirmbtn" id="classConfirm" aria-pressed="false" hidden>👍 Mark as confirmed</button>
 
       <section class="card evinfo" id="classEventInfo"></section>
 
@@ -1493,7 +1503,7 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
   }
 
   // Any error is shown on screen (iPad has no console), so a problem can be reported instead of buttons silently doing nothing.
-  const BUILD = 'b34';
+  const BUILD = 'b35';
   let errShown = 0;
   function showErr(where, err) {
     console.warn(where, err);
@@ -2040,10 +2050,10 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
       if (it.id === keepId) continue;
       const inked = Array.isArray(it.strokes) && it.strokes.length > 0;
       if (it.kind === 'task' && !inked) Store.remove(it.id);
-      if (it.kind === 'note' && !inked && !it.subject) Store.remove(it.id);
+      if (it.kind === 'note' && !inked && !it.subject && !it.bg) Store.remove(it.id);
       if (it.kind === 'gratitude' && !inked) Store.remove(it.id);
       if (it.kind === 'tasknote' && (!inked || !Store.items.has(it.taskId))) Store.remove(it.id);
-      if (it.kind === 'class' && !it.status && !hasNotes(it) && !it.gMoved && !it.gCancelled && (it.eventId || !it.title)) Store.remove(it.id);
+      if (it.kind === 'class' && !it.status && !it.confirmed && !hasNotes(it) && !it.gMoved && !it.gCancelled && (it.eventId || !it.title)) Store.remove(it.id);
     }
   }
 
@@ -2811,7 +2821,7 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
           class: 'we' + (ev.allDay ? ' allday' : '') + (ev.movedTo || isCancelled(ev) ? ' movedaway' : '') + (!ev.allDay && (ev.end || ev.start) < Date.now() ? ' done' : ''),
           style: `--ec:${ev.color || CAL_COLORS[0]}`, title: ev.title || '',
           onclick: () => { if (ev.busy) go('day/' + d); else if (!ev.allDay) openClassFor(ev); else if (EMBED && ev.id) openEventEditor(ev); else go('day/' + d); },
-        }, ev.allDay ? null : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, '')), el('span', {}, ev.busy ? 'Busy' : ev.title || '(No title)'))),
+        }, ev.allDay ? null : el('b', {}, timeOf(ev.start).replace(/:00(?=\D|$)/, ''), isConfirmed(ev) ? el('i', { class: 'wconf', title: 'Confirmed' }, ' 👍') : null), el('span', {}, ev.busy ? 'Busy' : ev.title || '(No title)'))),
         list.length ? null : el('span', { class: 'wempty' }, '—'));
       }
       const n = events.length;
@@ -3497,7 +3507,12 @@ function send(o) {
     const rec = Store.items.get(classKey(ev)), done = !!(rec && rec.status === 'happened');
     const act = (cls, label, title, fn, off) => el('button', { class: 'evact ' + cls + (off ? ' off' : ''), title: off ? 'This calendar is view-only for your connected Google account' : title, 'aria-disabled': off ? 'true' : null,
       onclick: e => { e.stopPropagation(); toggleSwipe(li, false); if (off) { readOnlyHelp(cal); return; } fn(); } }, label);
+    const conf = !!(rec && rec.confirmed);
     return el('div', { class: 'evacts' },
+      act('confirm' + (conf ? ' on' : ''), conf ? '↺ Unconfirm' : '👍 Confirm', conf ? 'Mark as not confirmed' : 'The student confirmed this class', () => {
+        toast(toggleConfirmed(ev) ? 'Marked as confirmed.' : 'Not confirmed.');
+        renderCalendar();
+      }),
       act('move', '⏱ Move', ro ? 'Reschedule in the planner (this calendar can\'t be changed from here)' : 'Find another time', () => openMoveEvent(ev)),
       act('allday', '↦ All-day', 'Make it an all-day event that doesn\'t block time', () => makeAllDay(ev), ro),
       act('done' + (done ? ' on' : ''), done ? '↺ Undo' : '✓ Done', done ? 'Mark as not done' : 'Mark as done', () => {
@@ -3514,6 +3529,16 @@ function send(o) {
   function readOnlyHelp(cal) {
     const name = cal ? cal.label : 'This calendar';
     ask(`"${name}" is view-only for the Google account connected to Claude, so the planner can't move, change or delete its events. To fix it: open Google Calendar with the account that owns "${name}", go to ⋮ → Settings and sharing → Share with specific people, and give your connected account "Make changes to events". Then tap ↻ on the calendar. (✓ Done still works: it's saved in the planner.)`, 'OK');
+  }
+
+  // A class the student confirmed (separate from how it went)
+  const isConfirmed = ev => { const r = !ev.allDay && Store.items.get(classKey(ev)); return !!(r && r.confirmed); };
+  function toggleConfirmed(ev, on) {
+    const c = recFor(ev);
+    c.confirmed = on === undefined ? !c.confirmed : !!on;
+    c.confirmedAt = c.confirmed ? Date.now() : 0;
+    Store.save(c);
+    return c.confirmed;
   }
 
   const EVENTS_NEXT = 3;
@@ -3584,7 +3609,8 @@ function send(o) {
       const what = [
         el('span', { class: 'evtitle' },
           el('strong', { class: ev.busy ? 'busyname' : null }, ev.busy ? 'Busy' : ev.title || '(No title)'),
-          rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status, !isClassCal(ev.calId))) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null),
+          rec && rec.status ? el('span', { class: 'st st-' + rec.status }, statusLabel(rec.status, !isClassCal(ev.calId))) : rec && hasNotes(rec) ? el('span', { class: 'st st-notes' }, 'Notes ✓') : null,
+          rec && rec.confirmed && !rec.status ? el('span', { class: 'st st-confirmed', title: 'The student confirmed' }, '👍 Confirmed') : null),
         sub ? el('span', { class: 'evsub' }, sub) : null];
       const isPast = ev.end && ev.end < now;
       const li = el('li', { class: 'swipe ' + (isPast ? 'past' : next.has(ev) ? 'next' : '') + (ev.movedTo || isCancelled(ev) ? ' movedaway' : '') + (others ? ' clash' : '') + (shown.has(ev) ? '' : isPast ? ' earlier' : ' more'), hidden: shown.has(ev) ? null : true });
@@ -4117,7 +4143,16 @@ function send(o) {
     }
   }
 
+  function drawConfirm(c) {
+    const b = $('#classConfirm');
+    b.hidden = !(c.eventId ? isClassCal(c.calId) : !!c.isClass);
+    b.classList.toggle('on', !!c.confirmed);
+    b.setAttribute('aria-pressed', String(!!c.confirmed));
+    b.textContent = c.confirmed ? '👍 Confirmed' : '👍 Mark as confirmed';
+    b.onclick = () => { c.confirmed = !c.confirmed; c.confirmedAt = c.confirmed ? Date.now() : 0; Store.save(c); drawConfirm(c); };
+  }
   function showClassStatus(c) {
+    drawConfirm(c);
     document.querySelectorAll('#classStatus .st').forEach((b, i) => {
       const on = c.status === STATUSES[i][0];
       b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
@@ -5272,6 +5307,7 @@ Rules:
 - Answer in the language she writes in. Be short and practical; plain text, short lists are fine, no tables.
 - Use the tools to look at her calendar before answering questions about her schedule. Classes from the "Clever Connection" calendar are lessons; "SuperAutor" events are work.
 - When she asks to add or schedule something, add it to her PLANNER ONLY with add_planner_event (never to Google Calendar). Times she gives are Brasília time unless she names another zone; convert Utah/US times to Brasília. Before adding, check for conflicts with get_events and mention any.
+- When she says a student confirmed a class, use set_class_confirmed.
 - Only remove events with remove_planner_event when she clearly asks; it only works on planner-only events.
 - If something is missing (like how long a class is), assume 1 hour and say so.`;
   }
@@ -5288,7 +5324,7 @@ Rules:
         const names = new Map((Cals.list || []).map(c => [c.id, c.name]));
         return all.slice(0, 200).map(e => ({ id: e.local ? e.id : undefined, title: e.busy ? 'Busy' : e.title || '(No title)', allDay: !!e.allDay,
           start: e.allDay ? iso(new Date(e.start)) : fmtWhen(e.start), end: e.allDay ? undefined : fmtWhen(e.end || e.start),
-          calendar: e.calId === 'planner' ? 'Planner only' : names.get(e.calId) || '', cancelled: isCancelled(e) || undefined, movedTo: e.movedTo ? fmtWhen(e.movedTo) : undefined }));
+          calendar: e.calId === 'planner' ? 'Planner only' : names.get(e.calId) || '', cancelled: isCancelled(e) || undefined, confirmed: isConfirmed(e) || undefined, movedTo: e.movedTo ? fmtWhen(e.movedTo) : undefined }));
       } },
     { name: 'add_planner_event', description: 'Adds an event to her planner only (not Google Calendar). Can repeat weekly. Returns what was added.',
       inputSchema: { type: 'object', properties: {
@@ -5314,6 +5350,19 @@ Rules:
         askNote(`Added “${title}” to your planner${weeks > 1 ? ` (${weeks} weeks)` : ''}.`);
         refreshView();
         return { added: title, dates: added, time: `${st}–${en}` };
+      } },
+    { name: 'set_class_confirmed', description: 'Marks a class as confirmed (or not) by the student. Finds the event on that date whose title contains the student name. Returns the class it changed.',
+      inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, student: { type: 'string' }, confirmed: { type: 'boolean', description: 'true to confirm (default), false to undo' } }, required: ['date', 'student'] },
+      async execute(input) {
+        const date = String(input.date || ''), who = fold(String(input.student || '')).trim();
+        if (!isDate(date) || !who) throw new Error('Need a date (YYYY-MM-DD) and a student name.');
+        const evs = visibleEvents(await fetchEvents(date, addDays(date, 1))).filter(e => !e.allDay && !e.busy && iso(new Date(e.start)) === date && fold(e.title || '').includes(who));
+        if (!evs.length) throw new Error('No class for that student on that day.');
+        const on = input.confirmed !== false;
+        for (const e of evs) toggleConfirmed(e, on);
+        askNote(`${on ? 'Confirmed' : 'Unconfirmed'} “${evs[0].title}” (${fmtWhen(evs[0].start)}).`);
+        refreshView();
+        return { changed: evs.map(e => ({ title: e.title, start: fmtWhen(e.start) })), confirmed: on };
       } },
     { name: 'remove_planner_event', description: 'Removes one planner-only event by its id (ids come from get_events; only planner-only events have one).',
       inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
