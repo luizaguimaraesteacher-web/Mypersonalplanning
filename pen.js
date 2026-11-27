@@ -46,7 +46,7 @@
   }
 
   // Any error is shown on screen (iPad has no console), so a problem can be reported instead of buttons silently doing nothing.
-  const BUILD = 'b33';
+  const BUILD = 'b34';
   let errShown = 0;
   function showErr(where, err) {
     console.warn(where, err);
@@ -3813,6 +3813,118 @@ function send(o) {
       d.oncancel = () => done(false);
     });
   }
+
+  // ---------- Ask Claude: a small chat box at the top ----------
+  const Ask = { turns: [], ctl: null, busy: false };
+  const fmtWhen = ms => new Date(ms).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  function askRules() {
+    const now = new Date();
+    return `You are Claude, helping a teacher inside her Pen Planner app (a daily planner on her iPad). She teaches English classes online (students in Brazil and the US) and also works at SuperAutor.
+Now: ${now.toString()} (her local time, Brasília). Utah is 4 hours behind Brasília, US Eastern 2 hours behind, Texas 3 hours behind.
+Rules:
+- Answer in the language she writes in. Be short and practical; plain text, short lists are fine, no tables.
+- Use the tools to look at her calendar before answering questions about her schedule. Classes from the "Clever Connection" calendar are lessons; "SuperAutor" events are work.
+- When she asks to add or schedule something, add it to her PLANNER ONLY with add_planner_event (never to Google Calendar). Times she gives are Brasília time unless she names another zone; convert Utah/US times to Brasília. Before adding, check for conflicts with get_events and mention any.
+- Only remove events with remove_planner_event when she clearly asks; it only works on planner-only events.
+- If something is missing (like how long a class is), assume 1 hour and say so.`;
+  }
+  const ASK_TOOLS = [
+    { name: 'get_events', description: 'Lists her calendar events (Google calendars and planner-only events, as the planner shows them) between two dates, inclusive. Returns title, start, end, calendar, and whether planner-only, cancelled or moved.',
+      inputSchema: { type: 'object', properties: { from: { type: 'string', description: 'YYYY-MM-DD' }, to: { type: 'string', description: 'YYYY-MM-DD (max 31 days after from)' } }, required: ['from', 'to'] },
+      async execute(input) {
+        const from = isDate(String(input.from)) ? String(input.from) : today();
+        let to = isDate(String(input.to)) ? String(input.to) : from;
+        if (to < from) to = from;
+        if (to > addDays(from, 31)) to = addDays(from, 31);
+        askNote(`Looking at your calendar (${fmt(from, { month: 'short', day: 'numeric' })}${to !== from ? ' – ' + fmt(to, { month: 'short', day: 'numeric' }) : ''})…`);
+        const all = visibleEvents(await fetchEvents(from, addDays(to, 1)));
+        const names = new Map((Cals.list || []).map(c => [c.id, c.name]));
+        return all.slice(0, 200).map(e => ({ id: e.local ? e.id : undefined, title: e.busy ? 'Busy' : e.title || '(No title)', allDay: !!e.allDay,
+          start: e.allDay ? iso(new Date(e.start)) : fmtWhen(e.start), end: e.allDay ? undefined : fmtWhen(e.end || e.start),
+          calendar: e.calId === 'planner' ? 'Planner only' : names.get(e.calId) || '', cancelled: isCancelled(e) || undefined, movedTo: e.movedTo ? fmtWhen(e.movedTo) : undefined }));
+      } },
+    { name: 'add_planner_event', description: 'Adds an event to her planner only (not Google Calendar). Can repeat weekly. Returns what was added.',
+      inputSchema: { type: 'object', properties: {
+        title: { type: 'string', description: 'For a class use "English class – <Student name>"' },
+        date: { type: 'string', description: 'First date, YYYY-MM-DD' },
+        start: { type: 'string', description: 'Start time HH:MM, 24h, Brasília time' },
+        end: { type: 'string', description: 'End time HH:MM, 24h, Brasília time' },
+        weeks: { type: 'number', description: 'How many weeks to repeat (1 = just once, max 30)' } }, required: ['title', 'date', 'start', 'end'] },
+      async execute(input) {
+        const title = String(input.title || '').trim().slice(0, 120), date = String(input.date || '');
+        const tm = v => /^\d{1,2}:\d\d$/.test(String(v || '')) ? String(v).padStart(5, '0') : null;
+        const st = tm(input.start), en = tm(input.end);
+        if (!title || !isDate(date) || !st || !en) throw new Error('Need a title, a date (YYYY-MM-DD) and start/end times (HH:MM).');
+        const weeks = Math.max(1, Math.min(30, Math.round(Number(input.weeks) || 1)));
+        const added = [];
+        for (let w = 0; w < weeks; w++) {
+          const d = addDays(date, 7 * w);
+          const s = new Date(d + 'T' + st).getTime(); let e = new Date(d + 'T' + en).getTime();
+          if (!(e > s)) e = s + 3600e3;
+          savePlannerEvent(null, { title, allDay: false, start: s, end: e, notes: weeks > 1 ? 'Weekly' : '' });
+          added.push(d);
+        }
+        askNote(`Added “${title}” to your planner${weeks > 1 ? ` (${weeks} weeks)` : ''}.`);
+        refreshView();
+        return { added: title, dates: added, time: `${st}–${en}` };
+      } },
+    { name: 'remove_planner_event', description: 'Removes one planner-only event by its id (ids come from get_events; only planner-only events have one).',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      async execute(input) {
+        const it = Store.items.get(String(input.id || ''));
+        if (!it || it.kind !== 'pevent') throw new Error('No planner-only event with that id.');
+        Store.remove(it.id);
+        askNote(`Removed “${it.title}” (${fmtWhen(it.start)}).`);
+        refreshView();
+        return { removed: it.title, when: fmtWhen(it.start) };
+      } },
+  ];
+  function refreshView() { try { route(); } catch { /* the page shows errors itself */ } }
+  function askMsg(cls, text) {
+    const m = el('div', { class: 'askmsg ' + cls });
+    m.textContent = text;
+    $('#askLog').append(m);
+    $('#askLog').scrollTop = $('#askLog').scrollHeight;
+    return m;
+  }
+  // tool steps show above Claude's answer
+  const askNote = t => { const n = askMsg('note', '✓ ' + t); if (Ask.bubble && Ask.bubble.isConnected) Ask.bubble.before(n); };
+  const ASK_ERR = { not_granted: 'Claude isn’t allowed for this planner. You can allow it from the artifact’s Permissions menu.', sampling_disabled: 'Claude isn’t available for this account.',
+    rate_limited: 'Too many questions right now. Try again in a little while.', session_expired: 'Please sign in to Claude again.', refused: 'Claude can’t help with that one.', prompt_too_large: 'This chat got too long. Tap New chat.' };
+  async function askSend(text) {
+    if (!Sample || Ask.busy || !text.trim()) return;
+    $('#askChat').hidden = false;
+    Ask.busy = true; $('#askSend').disabled = true; $('#askStop').hidden = false;
+    askMsg('me', text);
+    Ask.turns.push({ role: 'user', content: text });
+    const bubble = askMsg('ai thinking', 'Thinking…');
+    const lastRound = Ask.bubble = bubble;
+    Ask.ctl = new AbortController();
+    const caps = await Sample.limits().catch(() => null);
+    try {
+      const turns = Ask.turns.slice(-16);
+      if (turns[0].role !== 'user') turns.shift();
+      const { text: answer } = await Sample([{ role: 'user', content: askRules() }, ...turns], {
+        cache: false, signal: Ask.ctl.signal, tools: caps && caps.tools ? ASK_TOOLS : undefined,
+        onText: ({ text: t }) => { lastRound.classList.remove('thinking'); lastRound.textContent = t.replace(/\*\*(.+?)\*\*/g, '$1'); $('#askLog').scrollTop = $('#askLog').scrollHeight; },
+      });
+      Ask.turns.push({ role: 'assistant', content: answer });
+    } catch (e) {
+      const code = e && e.code;
+      if (e && e.text) { bubble.classList.remove('thinking'); bubble.textContent = e.text; } else bubble.remove();
+      if (code !== 'cancelled') askMsg('err', ASK_ERR[code] || 'Something went wrong. Try again.');
+      if (code === 'not_granted' || code === 'sampling_disabled') $('#askBar').hidden = true;
+      Ask.turns.pop();
+    } finally {
+      Ask.busy = false; $('#askSend').disabled = false; $('#askStop').hidden = true; Ask.ctl = null;
+    }
+  }
+  $('#askForm').addEventListener('submit', e => { e.preventDefault(); const v = $('#askInput').value; $('#askInput').value = ''; askSend(v); });
+  $('#askStop').addEventListener('click', () => Ask.ctl && Ask.ctl.abort());
+  $('#askHide').addEventListener('click', () => { $('#askChat').hidden = true; });
+  $('#askInput').addEventListener('focus', () => { if ($('#askLog').childElementCount) $('#askChat').hidden = false; });
+  $('#askClear').addEventListener('click', () => { if (Ask.ctl) Ask.ctl.abort(); Ask.turns = []; fill($('#askLog')); $('#askChat').hidden = true; $('#askInput').focus(); });
+  if (EMBED) window.claude.use('sample').then(s => { $('#askBar').hidden = !s; }).catch(() => {});
 
   function route() { safely('Opening the page', routeInner); }
   function routeInner() {

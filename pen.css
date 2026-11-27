@@ -885,3 +885,19 @@ body.view-notebooks #toolbar, body.view-notebook #toolbar { display: none; }
   .we { font-size: 14px; }
   .we b { display: inline; margin-right: 6px; font-size: 13px; }
 }
+
+/* ---- Ask Claude box ---- */
+.askbar { max-width: 1180px; margin: 10px auto 0; padding: 0 22px; }
+.askform { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 6px 5px 14px; box-shadow: var(--shadow); }
+.askicon { color: #c46a3c; font-size: 16px; }
+.askform input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 15px; outline: none; padding: 6px 0; color: var(--ink); }
+.askchat { margin-top: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 12px 14px 10px; }
+.asklog { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.askmsg { max-width: 88%; padding: 8px 12px; border-radius: 14px; font-size: 14.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.askmsg.me { align-self: flex-end; background: var(--ink); color: #fff; border-bottom-right-radius: 4px; }
+.askmsg.ai { align-self: flex-start; background: var(--soft); border-bottom-left-radius: 4px; }
+.askmsg.ai.thinking { color: var(--muted); font-style: italic; }
+.askmsg.note { align-self: flex-start; background: none; color: #2e7d55; font-size: 13px; padding: 0 4px; }
+.askmsg.err { align-self: flex-start; background: #fbe7e5; color: #8a241c; }
+.askfoot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+@media (max-width: 620px) { .askbar { padding: 0 12px; } .askform input { font-size: 14px; } }

@@ -40,6 +40,18 @@
     </details>
   </header>
 
+  <section id="askBar" class="askbar" hidden>
+    <form id="askForm" class="askform" autocomplete="off">
+      <span class="askicon" aria-hidden="true">✦</span>
+      <input id="askInput" placeholder="Ask Claude… “What do I have tomorrow?” “Add Ana Saturdays 3pm”" aria-label="Ask Claude" />
+      <button type="submit" class="mini primary" id="askSend">Ask</button>
+    </form>
+    <div id="askChat" class="askchat" hidden>
+      <div id="askLog" class="asklog" aria-live="polite"></div>
+      <div class="askfoot"><button type="button" class="mini" id="askStop" hidden>Stop</button><button type="button" class="mini" id="askHide">Hide</button><button type="button" class="mini" id="askClear">New chat</button></div>
+    </div>
+  </section>
+
   <div id="installHint" class="hint" hidden>
     <span><strong>Keep your notes safe:</strong> on iPad tap <b>Share</b> → <b>Add to Home Screen</b> and open the planner from there. Safari can clear data from websites you don't open for a while.</span>
     <button class="mini" id="hintClose">Got it</button>
